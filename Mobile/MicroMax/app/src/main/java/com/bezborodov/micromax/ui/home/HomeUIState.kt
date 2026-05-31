@@ -10,6 +10,8 @@ data class HomeUiState(
     val dateText: String = "Сегодня",
     val snapshot: WarehouseSnapshot = WarehouseSnapshot(),
     val isLoading: Boolean = false,
+    val isOperationSubmitting: Boolean = false,
+    val isAssistantLoading: Boolean = false,
     val message: String? = null,
     val pendingCommand: AssistantCommandDto? = null
 ) {
