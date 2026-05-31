@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: micromax-postgres
+    environment:
+      POSTGRES_DB: micromax
+      POSTGRES_USER: micromax
+      POSTGRES_PASSWORD: micromax
+    ports:
+      - "5432:5432"
+    volumes:
+      - micromax-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  micromax-postgres-data:

@@ -1,0 +1,63 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vs/
+.vscode/
+*.iml
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+logs/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+*.jks
+*.keystore
+google-services.json
+
+# .NET / ASP.NET
+**/bin/
+**/obj/
+TestResults/
+*.nupkg
+*.snupkg
+coverage/
+coverage.*
+*.coverage
+
+# Android / Gradle
+**/.gradle/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+output.json
+*.hprof
+
+# Kotlin / Android Studio generated files
+misc.xml
+deploymentTargetDropDown.xml
+render.experimental.xml
+
+# Docker / database local data
+docker-data/
+postgres-data/
+*.bak
+*.dump
+
+# Generated temporary files
+*.tmp
+*.temp
