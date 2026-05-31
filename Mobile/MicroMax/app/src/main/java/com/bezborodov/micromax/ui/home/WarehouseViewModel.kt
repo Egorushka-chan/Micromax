@@ -6,7 +6,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.bezborodov.micromax.data.CreateProductRequest
 import com.bezborodov.micromax.data.MicroMaxApiClient
+import com.bezborodov.micromax.data.WarehouseSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -48,18 +50,61 @@ class WarehouseViewModel(
     fun receive(productId: Int, targetCellId: Int, quantity: Double) {
         runChangingOperation(successMessage = "Приход выполнен") {
             apiClient.receive(productId, targetCellId, quantity)
+            apiClient.loadSnapshot()
         }
     }
 
     fun writeOff(productId: Int, sourceCellId: Int, quantity: Double) {
         runChangingOperation(successMessage = "Расход выполнен") {
             apiClient.writeOff(productId, sourceCellId, quantity)
+            apiClient.loadSnapshot()
         }
     }
 
     fun move(productId: Int, sourceCellId: Int, targetCellId: Int, quantity: Double) {
         runChangingOperation(successMessage = "Перемещение выполнено") {
             apiClient.move(productId, sourceCellId, targetCellId, quantity)
+            apiClient.loadSnapshot()
+        }
+    }
+
+    fun createProduct(
+        sku: String,
+        name: String,
+        unit: String,
+        minQuantity: Double,
+        initialCellId: Int?,
+        initialQuantity: Double
+    ) {
+        if (sku.isBlank() || name.isBlank() || unit.isBlank()) {
+            uiState = uiState.copy(message = "Заполните SKU, название и единицу измерения.")
+            return
+        }
+
+        if (minQuantity < 0.0 || initialQuantity < 0.0) {
+            uiState = uiState.copy(message = "Количество и минимальный остаток не могут быть отрицательными.")
+            return
+        }
+
+        if (initialQuantity > 0.0 && initialCellId == null) {
+            uiState = uiState.copy(message = "Для начального остатка нужно выбрать ячейку.")
+            return
+        }
+
+        runChangingOperation(successMessage = "Товар добавлен") {
+            // Если указан стартовый остаток, сразу выполняем приёмку в выбранную ячейку.
+            val product = apiClient.createProduct(
+                CreateProductRequest(
+                    sku = sku.trim(),
+                    name = name.trim(),
+                    unit = unit.trim(),
+                    minQuantity = minQuantity
+                )
+            )
+            if (initialQuantity > 0.0 && initialCellId != null) {
+                apiClient.receive(product.id, initialCellId, initialQuantity)
+            }
+            apiClient.loadSnapshot()
         }
     }
 
@@ -98,21 +143,19 @@ class WarehouseViewModel(
             clearPendingCommand = true
         ) {
             apiClient.confirmAssistant(commandId)
+            apiClient.loadSnapshot()
         }
     }
 
     private fun runChangingOperation(
         successMessage: String,
         clearPendingCommand: Boolean = false,
-        action: () -> Unit
+        action: () -> WarehouseSnapshot
     ) {
         viewModelScope.launch {
             uiState = uiState.copy(isOperationSubmitting = true, message = null)
             val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    action()
-                    apiClient.loadSnapshot()
-                }
+                withContext(Dispatchers.IO) { action() }
             }
             uiState = result.fold(
                 onSuccess = {

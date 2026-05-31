@@ -26,6 +26,7 @@ import com.bezborodov.micromax.ui.components.LoadingState
 import com.bezborodov.micromax.ui.components.MessageBanner
 import com.bezborodov.micromax.ui.components.ScreenBg
 import com.bezborodov.micromax.ui.items.ItemsScreen
+import com.bezborodov.micromax.ui.items.ItemsStartDestination
 import com.bezborodov.micromax.ui.operations.OperationsScreen
 import com.bezborodov.micromax.ui.theme.MicroMaxTheme
 
@@ -35,6 +36,7 @@ fun HomeScreen(
     viewModel: WarehouseViewModel = viewModel(factory = WarehouseViewModelFactory(apiClient))
 ) {
     var selectedTab by remember { mutableStateOf(BottomTab.Home) }
+    var itemsStartDestination by remember { mutableStateOf(ItemsStartDestination.List) }
     val state = viewModel.uiState
     val hasLoadedData = state.snapshot.products.isNotEmpty() ||
         state.snapshot.cells.isNotEmpty() ||
@@ -46,7 +48,12 @@ fun HomeScreen(
         bottomBar = {
             HomeBottomBar(
                 selectedTab = selectedTab,
-                onTabClick = { selectedTab = it }
+                onTabClick = {
+                    selectedTab = it
+                    if (it == BottomTab.Items) {
+                        itemsStartDestination = ItemsStartDestination.List
+                    }
+                }
             )
         }
     ) { innerPadding ->
@@ -68,11 +75,19 @@ fun HomeScreen(
                     message = state.message,
                     onRefresh = { viewModel.loadData(showMessage = true) }
                 )
+
                 else -> when (selectedTab) {
                     BottomTab.Home -> HomeDashboardScreen(
                         state = state,
                         onRefresh = { viewModel.loadData(showMessage = true) },
-                        onOpenItems = { selectedTab = BottomTab.Items },
+                        onOpenItems = {
+                            itemsStartDestination = ItemsStartDestination.List
+                            selectedTab = BottomTab.Items
+                        },
+                        onOpenAddItem = {
+                            itemsStartDestination = ItemsStartDestination.Add
+                            selectedTab = BottomTab.Items
+                        },
                         onOpenCells = { selectedTab = BottomTab.Cells },
                         onOpenOperations = { selectedTab = BottomTab.Transactions },
                         onOpenAssistant = { selectedTab = BottomTab.Assistant }
@@ -80,6 +95,9 @@ fun HomeScreen(
 
                     BottomTab.Items -> ItemsScreen(
                         state = state,
+                        isSubmitting = state.isOperationSubmitting,
+                        startDestination = itemsStartDestination,
+                        onCreateProduct = viewModel::createProduct,
                         onOpenOperations = { selectedTab = BottomTab.Transactions }
                     )
 

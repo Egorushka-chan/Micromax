@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
 import com.bezborodov.micromax.ui.components.ActionMenuRow
 import com.bezborodov.micromax.ui.components.DailyStatsCard
 import com.bezborodov.micromax.ui.components.HeaderCompanyBlock
@@ -13,13 +14,13 @@ import com.bezborodov.micromax.ui.components.HomeMenuItem
 import com.bezborodov.micromax.ui.components.SearchBarBlock
 import com.bezborodov.micromax.ui.components.SectionCard
 import com.bezborodov.micromax.ui.components.TextSecondary
-import androidx.compose.ui.unit.dp
 
 @Composable
 fun HomeDashboardScreen(
     state: HomeUiState,
     onRefresh: () -> Unit,
     onOpenItems: () -> Unit,
+    onOpenAddItem: () -> Unit,
     onOpenCells: () -> Unit,
     onOpenOperations: () -> Unit,
     onOpenAssistant: () -> Unit
@@ -55,8 +56,8 @@ fun HomeDashboardScreen(
         item {
             SectionCard(title = "Товары") {
                 ActionMenuRow(
-                    item = HomeMenuItem("Номенклатура", "Товары и текущие остатки", HomeMenuIcon.AddItem),
-                    onClick = onOpenItems
+                    item = HomeMenuItem("Добавить товар", "Завести новую номенклатуру", HomeMenuIcon.AddItem),
+                    onClick = onOpenAddItem
                 )
                 ActionMenuRow(
                     item = HomeMenuItem("Просмотр ячеек", "Содержимое мест хранения", HomeMenuIcon.Cell),

@@ -10,6 +10,7 @@ data class ProductDto(val id: Int, val sku: String, val name: String, val unit: 
 data class CellDto(val id: Int, val code: String, val name: String)
 data class StockDto(val productName: String, val sku: String, val cellCode: String, val zoneCode: String, val quantity: Double, val unit: String)
 data class OperationDto(val id: Int, val type: String, val productName: String, val sourceCell: String?, val targetCell: String?, val quantity: Double, val createdAt: String)
+data class CreateProductRequest(val sku: String, val name: String, val unit: String, val minQuantity: Double)
 data class WarehouseSnapshot(
     val products: List<ProductDto> = emptyList(),
     val cells: List<CellDto> = emptyList(),
@@ -98,6 +99,23 @@ class MicroMaxApiClient(
             put("userId", JSONObject.NULL)
             put("comment", "Операция из мобильного приложения")
         })
+    }
+
+    fun createProduct(request: CreateProductRequest): ProductDto {
+        val response = postJson("/api/products", JSONObject().apply {
+            put("sku", request.sku)
+            put("name", request.name)
+            put("unit", request.unit)
+            put("minQuantity", request.minQuantity)
+        })
+
+        return ProductDto(
+            id = response.getInt("id"),
+            sku = response.optString("sku"),
+            name = response.optString("name"),
+            unit = response.optString("unit"),
+            minQuantity = response.optDouble("minQuantity")
+        )
     }
 
     fun interpretAssistant(text: String): AssistantCommandDto {
