@@ -19,8 +19,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bezborodov.micromax.data.MicroMaxApiClient
-import com.bezborodov.micromax.domain.assistant.AiNavigationTarget
 import com.bezborodov.micromax.ui.assistant.AiAssistantOverlay
+import com.bezborodov.micromax.ui.assistant.AiAssistantNavigationTarget
 import com.bezborodov.micromax.ui.assistant.AiAssistantViewModel
 import com.bezborodov.micromax.ui.assistant.AiAssistantViewModelFactory
 import com.bezborodov.micromax.ui.cells.CellsScreen
@@ -53,12 +53,12 @@ fun HomeScreen(
     LaunchedEffect(assistantState.lastResult) {
         val result = assistantState.lastResult ?: return@LaunchedEffect
         when (result.navigationTarget) {
-            AiNavigationTarget.Products -> {
+            AiAssistantNavigationTarget.Products -> {
                 itemsStartDestination = ItemsStartDestination.List
                 selectedTab = BottomTab.Items
             }
 
-            AiNavigationTarget.Operations -> selectedTab = BottomTab.Transactions
+            AiAssistantNavigationTarget.Operations -> selectedTab = BottomTab.Transactions
             null -> Unit
         }
         if (result.success) {
@@ -169,9 +169,9 @@ fun HomeScreen(
             state = assistantState,
             onClose = assistantViewModel::close,
             onInputChange = assistantViewModel::onInputChange,
-            onSubmit = { assistantViewModel.submitCurrent(state.snapshot) },
-            onPromptClick = { assistantViewModel.usePrompt(it, state.snapshot) },
-            onConfirm = { assistantViewModel.confirmPending(state.snapshot) },
+            onSubmit = assistantViewModel::submitCurrent,
+            onPromptClick = assistantViewModel::usePrompt,
+            onConfirm = assistantViewModel::confirmPending,
             onCancelPending = assistantViewModel::rejectPending
         )
     }

@@ -1,7 +1,11 @@
 using MicroMax.Server.Models;
+using MicroMax.Server.Services.Assistant.Core;
 
-namespace MicroMax.Server.Services.Assistant;
+namespace MicroMax.Server.Services.Assistant.Providers;
 
+/// <summary>
+/// Общий контракт для реальных ИИ-провайдеров и Mock fallback.
+/// </summary>
 public interface IAiCommandProvider
 {
     AiProviderKind Kind { get; }

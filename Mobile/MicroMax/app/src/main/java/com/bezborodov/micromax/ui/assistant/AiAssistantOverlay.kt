@@ -43,10 +43,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.bezborodov.micromax.domain.assistant.AiCommand
-import com.bezborodov.micromax.domain.assistant.AiCommandRegistry
-import com.bezborodov.micromax.domain.assistant.AiCommandResult
-import com.bezborodov.micromax.domain.assistant.AiCommandRiskLevel
 import com.bezborodov.micromax.ui.components.Accent
 import com.bezborodov.micromax.ui.components.AccentDark
 import com.bezborodov.micromax.ui.components.ScreenBg
@@ -262,8 +258,7 @@ fun AiMessageBubble(
 }
 
 @Composable
-fun AiCommandPreviewCard(command: AiCommand) {
-    val definition = AiCommandRegistry.definitionFor(command.type)
+fun AiCommandPreviewCard(command: AiAssistantCommand) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -271,8 +266,8 @@ fun AiCommandPreviewCard(command: AiCommand) {
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Предпросмотр команды", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(definition.title, style = MaterialTheme.typography.bodyLarge)
-            Text(definition.description, style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+            Text(command.summary, style = MaterialTheme.typography.bodyLarge)
+            Text("Провайдер: ${command.provider}", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
             Text("Риск: ${command.riskLevel.label()}", style = MaterialTheme.typography.bodyMedium, color = command.riskLevel.color())
         }
     }
@@ -280,7 +275,7 @@ fun AiCommandPreviewCard(command: AiCommand) {
 
 @Composable
 fun AiConfirmationCard(
-    command: AiCommand,
+    command: AiAssistantCommand,
     isProcessing: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit
@@ -323,7 +318,7 @@ fun AiConfirmationCard(
 }
 
 @Composable
-fun AiCommandResultCard(result: AiCommandResult) {
+fun AiCommandResultCard(result: AiAssistantResult) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -344,31 +339,31 @@ fun AiCommandResultCard(result: AiCommandResult) {
 }
 
 @Composable
-private fun CommandParameterRows(command: AiCommand) {
+private fun CommandParameterRows(command: AiAssistantCommand) {
     val rows = listOfNotNull(
-        command.productQuery?.let { "Товар: $it" },
-        command.quantity?.let { "Количество: $it" },
-        command.minQuantity?.let { "Минимальный остаток: $it" },
-        command.sku?.let { "SKU: $it" },
-        command.name?.let { "Название: $it" }
+        "Тип команды: ${command.commandType}",
+        "Источник: ${command.provider}",
+        command.clarificationQuestion?.let { "Уточнение: $it" }
     )
     rows.forEach { row ->
         Text(row, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF333333))
     }
 }
 
-private fun AiCommandRiskLevel.label(): String = when (this) {
-    AiCommandRiskLevel.None -> "нет"
-    AiCommandRiskLevel.Low -> "низкий"
-    AiCommandRiskLevel.Medium -> "средний"
-    AiCommandRiskLevel.High -> "высокий"
-    AiCommandRiskLevel.Critical -> "критический"
+private fun String.label(): String = when (this) {
+    "None" -> "нет"
+    "Low" -> "низкий"
+    "Medium" -> "средний"
+    "High" -> "высокий"
+    "Critical" -> "критический"
+    else -> this.ifBlank { "не указан" }
 }
 
-private fun AiCommandRiskLevel.color(): Color = when (this) {
-    AiCommandRiskLevel.None -> TextMuted
-    AiCommandRiskLevel.Low -> Color(0xFF4C8F4A)
-    AiCommandRiskLevel.Medium -> Color(0xFFD07A00)
-    AiCommandRiskLevel.High -> Color(0xFFD35C46)
-    AiCommandRiskLevel.Critical -> Color(0xFFB00020)
+private fun String.color(): Color = when (this) {
+    "None" -> TextMuted
+    "Low" -> Color(0xFF4C8F4A)
+    "Medium" -> Color(0xFFD07A00)
+    "High" -> Color(0xFFD35C46)
+    "Critical" -> Color(0xFFB00020)
+    else -> TextMuted
 }

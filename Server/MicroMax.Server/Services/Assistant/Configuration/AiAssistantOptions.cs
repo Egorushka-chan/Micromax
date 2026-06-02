@@ -1,12 +1,15 @@
-namespace MicroMax.Server.Services.Assistant;
+namespace MicroMax.Server.Services.Assistant.Configuration;
 
+/// <summary>
+/// Настройки командного помощника: адреса моделей, таймауты и период восстановления провайдеров.
+/// </summary>
 public sealed class AiAssistantOptions
 {
     public OllamaOptions Ollama { get; set; } = new();
     public OpenAiOptions OpenAi { get; set; } = new();
     public int ProviderProbeIntervalSeconds { get; set; } = 30;
-    public int HealthTimeoutMs { get; set; } = 1500;
-    public int InferenceTimeoutSeconds { get; set; } = 25;
+    public int HealthTimeoutMs { get; set; } = 5000;
+    public int InferenceTimeoutSeconds { get; set; } = 90;
 }
 
 public sealed class OllamaOptions

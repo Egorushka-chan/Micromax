@@ -1,6 +1,7 @@
 using MicroMax.Server.Data;
 using MicroMax.Server.Models;
 using MicroMax.Server.Services;
+using MicroMax.Server.Services.Assistant.Registry;
 using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Api;
@@ -94,11 +95,17 @@ public static class MicroMaxApiEndpoints
         api.MapPost("/operations/move", async (MoveRequest request, WarehouseOperationService service) => await RunOperationAsync(() => service.MoveAsync(request)));
         api.MapPost("/operations/write-off", async (WriteOffRequest request, WarehouseOperationService service) => await RunOperationAsync(() => service.WriteOffAsync(request)));
 
-        api.MapPost("/assistant/interpret", async (AssistantRequest request, AssistantService service) =>
+        api.MapGet("/assistant/commands", (AiCommandRegistry registry) => Results.Ok(registry.Commands));
+
+        api.MapPost("/assistant/interpret", async (AssistantRequest request, AssistantService service, CancellationToken cancellationToken) =>
         {
             try
             {
-                return Results.Ok(await service.InterpretAsync(request.Text));
+                return Results.Ok(await service.InterpretAsync(request.Text, cancellationToken));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return Results.Empty;
             }
             catch (InvalidOperationException ex)
             {
@@ -120,24 +127,7 @@ public static class MicroMaxApiEndpoints
 
             try
             {
-                var operation = command.CommandType switch
-                {
-                    "post_receipt" when command.ProductId is not null && command.TargetCellId is not null && command.Quantity is not null =>
-                        await operations.ReceiveAsync(new ReceiveRequest(command.ProductId.Value, command.TargetCellId.Value, command.Quantity.Value, null, command.Summary)),
-                    "move" when command.ProductId is not null && command.SourceCellId is not null && command.TargetCellId is not null && command.Quantity is not null =>
-                        await operations.MoveAsync(new MoveRequest(command.ProductId.Value, command.SourceCellId.Value, command.TargetCellId.Value, command.Quantity.Value, null, command.Summary)),
-                    "move_product" when command.ProductId is not null && command.SourceCellId is not null && command.TargetCellId is not null && command.Quantity is not null =>
-                        await operations.MoveAsync(new MoveRequest(command.ProductId.Value, command.SourceCellId.Value, command.TargetCellId.Value, command.Quantity.Value, null, command.Summary)),
-                    "write_off" when command.ProductId is not null && command.SourceCellId is not null && command.Quantity is not null =>
-                        await operations.WriteOffAsync(new WriteOffRequest(command.ProductId.Value, command.SourceCellId.Value, command.Quantity.Value, null, command.Summary)),
-                    "write_off_product" when command.ProductId is not null && command.SourceCellId is not null && command.Quantity is not null =>
-                        await operations.WriteOffAsync(new WriteOffRequest(command.ProductId.Value, command.SourceCellId.Value, command.Quantity.Value, null, command.Summary)),
-                    "create_product" when !string.IsNullOrWhiteSpace(command.Sku) && !string.IsNullOrWhiteSpace(command.Name) =>
-                        await CreateProductFromCommandAsync(command, db),
-                    "update_min_stock" when command.ProductId is not null && command.MinQuantity is not null =>
-                        await UpdateMinQuantityFromCommandAsync(command, db),
-                    _ => throw new InvalidOperationException("Команда не содержит достаточных данных для выполнения.")
-                };
+                var operation = await ExecuteAssistantCommandAsync(command, operations, db);
 
                 return Results.Ok(new AssistantCommandResult(
                     true,
@@ -232,5 +222,44 @@ public static class MicroMaxApiEndpoints
         product.MinQuantity = command.MinQuantity!.Value;
         await db.SaveChangesAsync();
         return null;
+    }
+
+    private static Task<WarehouseOperation?> ExecuteAssistantCommandAsync(
+        AssistantCommand command,
+        WarehouseOperationService operations,
+        MicroMaxDbContext db) => command.CommandType switch
+        {
+            "post_receipt" => ReceiveFromCommandAsync(command, operations),
+            "move_product" => MoveFromCommandAsync(command, operations),
+            "write_off_product" => WriteOffFromCommandAsync(command, operations),
+            "create_product" => CreateProductFromCommandAsync(command, db),
+            "update_min_stock" => UpdateMinQuantityFromCommandAsync(command, db),
+            _ => throw new InvalidOperationException("Команда не содержит достаточных данных для выполнения.")
+        };
+
+    private static async Task<WarehouseOperation?> ReceiveFromCommandAsync(AssistantCommand command, WarehouseOperationService operations)
+    {
+        Ensure(command.ProductId, command.TargetCellId, command.Quantity);
+        return await operations.ReceiveAsync(new ReceiveRequest(command.ProductId!.Value, command.TargetCellId!.Value, command.Quantity!.Value, null, command.Summary));
+    }
+
+    private static async Task<WarehouseOperation?> MoveFromCommandAsync(AssistantCommand command, WarehouseOperationService operations)
+    {
+        Ensure(command.ProductId, command.SourceCellId, command.TargetCellId, command.Quantity);
+        return await operations.MoveAsync(new MoveRequest(command.ProductId!.Value, command.SourceCellId!.Value, command.TargetCellId!.Value, command.Quantity!.Value, null, command.Summary));
+    }
+
+    private static async Task<WarehouseOperation?> WriteOffFromCommandAsync(AssistantCommand command, WarehouseOperationService operations)
+    {
+        Ensure(command.ProductId, command.SourceCellId, command.Quantity);
+        return await operations.WriteOffAsync(new WriteOffRequest(command.ProductId!.Value, command.SourceCellId!.Value, command.Quantity!.Value, null, command.Summary));
+    }
+
+    private static void Ensure(params object?[] values)
+    {
+        if (values.Any(x => x is null))
+        {
+            throw new InvalidOperationException("Команда не содержит достаточных данных для выполнения.");
+        }
     }
 }

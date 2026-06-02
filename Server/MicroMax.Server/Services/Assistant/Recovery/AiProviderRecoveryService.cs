@@ -1,7 +1,12 @@
+using MicroMax.Server.Services.Assistant.Configuration;
+using MicroMax.Server.Services.Assistant.Providers;
 using Microsoft.Extensions.Options;
 
-namespace MicroMax.Server.Services.Assistant;
+namespace MicroMax.Server.Services.Assistant.Recovery;
 
+/// <summary>
+/// Фоновая проверка восстановления Ollama/OpenAI, чтобы приложение не оставалось в Mock-режиме навсегда.
+/// </summary>
 public sealed class AiProviderRecoveryService(
     IServiceProvider serviceProvider,
     AiProviderAvailability availability,

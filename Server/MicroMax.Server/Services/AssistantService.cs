@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using MicroMax.Server.Data;
 using MicroMax.Server.Models;
-using MicroMax.Server.Services.Assistant;
+using MicroMax.Server.Services.Assistant.Core;
+using MicroMax.Server.Services.Assistant.Execution;
 using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Services;

@@ -1,10 +1,14 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using MicroMax.Server.Models;
+using MicroMax.Server.Services.Assistant.Registry;
 
-namespace MicroMax.Server.Services.Assistant;
+namespace MicroMax.Server.Services.Assistant.Core;
 
-public static class AiCommandRules
+/// <summary>
+/// Набор rule-based правил: используется Mock-провайдером и серверной валидацией, но список команд берёт из реестра.
+/// </summary>
+public sealed class AiCommandRules(AiCommandRegistry commandRegistry)
 {
     private static readonly HashSet<string> StopWords =
     [
@@ -14,39 +18,15 @@ public static class AiCommandRules
         "остаток", "остатка", "минимальный", "минимум", "sku", "артикул"
     ];
 
-    public static string DetectCommandType(string lower)
+    public string DetectCommandType(string lower)
     {
-        if (HasAny(lower, "отмени", "отменить", "стоп")) return "cancel";
-        if (HasAny(lower, "что ты умеешь", "доступные команды", "помощь", "help")) return "help";
-        if (HasAny(lower, "спис", "спиш", "расход")) return "write_off_product";
-        if (HasAny(lower, "перемест", "перенеси")) return "move_product";
-        if (HasAny(lower, "проведи поступ", "провести поступ", "прими", "приём", "прием")) return "post_receipt";
-        if (HasAny(lower, "создай поступ", "создать поступ", "черновик поступ")) return "create_receipt";
-        if (HasAny(lower, "создай товар", "создать товар", "добавь товар", "добавить товар")) return "create_product";
-        if (HasAny(lower, "минимальн", "минимум", "мин остат")) return "update_min_stock";
-        if (HasAny(lower, "нулев", "нет остат")) return "zero_stock";
-        if (HasAny(lower, "низк", "мало", "заканч")) return "low_stock";
-        if (HasAny(lower, "сводк", "итоги", "статист")) return "warehouse_summary";
-        if (HasAny(lower, "открой список товаров", "список товаров", "номенклатур")) return "open_products";
-        if (HasAny(lower, "найди", "найти", "где леж", "покажи товар")) return "find_product";
-        return "unknown";
+        return commandRegistry.Commands.FirstOrDefault(command => HasAny(lower, command.TriggerPhrases.ToArray()))?.Type
+            ?? AiCommandRegistry.Unknown;
     }
 
-    public static string RiskFor(string commandType) => commandType switch
-    {
-        "create_product" or "update_min_stock" => "Medium",
-        "move_product" or "write_off_product" or "post_receipt" => "High",
-        "create_receipt" => "Low",
-        _ => "None"
-    };
+    public string RiskFor(string commandType) => commandRegistry.Find(commandType)?.RiskLevel ?? "None";
 
-    public static bool RequiresProduct(string commandType) => commandType is
-        "find_product" or
-        "update_min_stock" or
-        "move_product" or
-        "write_off_product" or
-        "create_receipt" or
-        "post_receipt";
+    public bool RequiresProduct(string commandType) => commandRegistry.Find(commandType)?.RequiresProduct == true;
 
     public static List<Product> FindProducts(string lower, IReadOnlyList<Product> products)
     {
@@ -95,11 +75,12 @@ public static class AiCommandRules
         return match.Success ? match.Groups[1].Value : null;
     }
 
-    public static string BuildSummary(AssistantCommand command, AiCommandContext context)
+    public string BuildSummary(AssistantCommand command, AiCommandContext context)
     {
         var product = context.Products.FirstOrDefault(x => x.Id == command.ProductId);
         var source = context.Cells.FirstOrDefault(x => x.Id == command.SourceCellId);
         var target = context.Cells.FirstOrDefault(x => x.Id == command.TargetCellId);
+        var definition = commandRegistry.Find(command.CommandType);
 
         return command.CommandType switch
         {
@@ -116,7 +97,7 @@ public static class AiCommandRules
             "post_receipt" => $"Провести поступление {command.Quantity} товара «{product?.Name}» в {target?.Code}.",
             "cancel" => "Отменить ожидающую команду.",
             "help" => "Показать доступные команды.",
-            _ => "Команда не распознана."
+            _ => definition?.Title ?? "Команда не распознана."
         };
     }
 

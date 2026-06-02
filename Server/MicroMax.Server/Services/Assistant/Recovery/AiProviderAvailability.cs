@@ -1,7 +1,11 @@
 using System.Collections.Concurrent;
+using MicroMax.Server.Services.Assistant.Core;
 
-namespace MicroMax.Server.Services.Assistant;
+namespace MicroMax.Server.Services.Assistant.Recovery;
 
+/// <summary>
+/// Хранит текущее состояние доступности провайдеров между пользовательскими запросами и recovery-проверками.
+/// </summary>
 public sealed class AiProviderAvailability
 {
     private readonly ConcurrentDictionary<AiProviderKind, bool> _state = new();

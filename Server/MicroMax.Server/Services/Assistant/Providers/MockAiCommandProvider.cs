@@ -1,8 +1,12 @@
 using MicroMax.Server.Models;
+using MicroMax.Server.Services.Assistant.Core;
 
-namespace MicroMax.Server.Services.Assistant;
+namespace MicroMax.Server.Services.Assistant.Providers;
 
-public sealed class MockAiCommandProvider : IAiCommandProvider
+/// <summary>
+/// Rule-based fallback: работает без внешней модели и возвращает тот же контракт, что реальные ИИ-провайдеры.
+/// </summary>
+public sealed class MockAiCommandProvider(AiCommandRules commandRules) : IAiCommandProvider
 {
     public AiProviderKind Kind => AiProviderKind.Mock;
     public bool IsRealProvider => false;
@@ -12,18 +16,18 @@ public sealed class MockAiCommandProvider : IAiCommandProvider
     public Task<AssistantCommand> InterpretAsync(AiCommandContext context, string text, CancellationToken cancellationToken)
     {
         var lower = text.Trim().ToLowerInvariant();
-        var type = AiCommandRules.DetectCommandType(lower);
+        var type = commandRules.DetectCommandType(lower);
         var cells = AiCommandRules.FindCells(lower, context.Cells);
         var productMatches = AiCommandRules.FindProducts(lower, context.Products);
 
-        if (AiCommandRules.RequiresProduct(type) && productMatches.Count > 1)
+        if (commandRules.RequiresProduct(type) && productMatches.Count > 1)
         {
             return Task.FromResult(Clarification(
                 "Найдено несколько товаров. Уточните, какой товар нужен.",
                 productMatches.Take(6).Select(x => new AssistantChoice(x.Id.ToString(), $"{x.Name} · {x.Sku}", "product")).ToList()));
         }
 
-        if (AiCommandRules.RequiresProduct(type) && productMatches.Count == 0)
+        if (commandRules.RequiresProduct(type) && productMatches.Count == 0)
         {
             return Task.FromResult(Clarification("Не удалось определить товар. Укажите название или SKU.", []));
         }
@@ -53,9 +57,9 @@ public sealed class MockAiCommandProvider : IAiCommandProvider
             Name = name,
             Unit = lower.Contains("кг") ? "кг" : "шт"
         };
-        command.RiskLevel = AiCommandRules.RiskFor(command.CommandType);
+        command.RiskLevel = commandRules.RiskFor(command.CommandType);
         command.RequiresConfirmation = command.RiskLevel is "Medium" or "High" or "Critical";
-        command.Summary = AiCommandRules.BuildSummary(command, context);
+        command.Summary = commandRules.BuildSummary(command, context);
 
         return Task.FromResult(command);
     }

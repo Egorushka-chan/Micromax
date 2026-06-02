@@ -2,7 +2,13 @@ using System.Text.Json.Serialization;
 using MicroMax.Server.Api;
 using MicroMax.Server.Data;
 using MicroMax.Server.Services;
-using MicroMax.Server.Services.Assistant;
+using MicroMax.Server.Services.Assistant.Configuration;
+using MicroMax.Server.Services.Assistant.Core;
+using MicroMax.Server.Services.Assistant.Execution;
+using MicroMax.Server.Services.Assistant.Prompting;
+using MicroMax.Server.Services.Assistant.Providers;
+using MicroMax.Server.Services.Assistant.Recovery;
+using MicroMax.Server.Services.Assistant.Registry;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,8 +29,10 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<MicroMaxDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<WarehouseOperationService>();
 builder.Services.Configure<AiAssistantOptions>(builder.Configuration.GetSection("Assistant"));
+builder.Services.AddSingleton<AiCommandRegistry>();
 builder.Services.AddSingleton<AiProviderAvailability>();
 builder.Services.AddSingleton<AiCommandPromptBuilder>();
+builder.Services.AddSingleton<AiCommandRules>();
 builder.Services.AddSingleton<AiCommandNormalizer>();
 builder.Services.AddScoped<IAiCommandProvider, OllamaAiCommandProvider>();
 builder.Services.AddScoped<IAiCommandProvider, OpenAiAiCommandProvider>();

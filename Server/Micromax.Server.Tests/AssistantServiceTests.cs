@@ -2,6 +2,11 @@ using MicroMax.Server.Data;
 using MicroMax.Server.Models;
 using MicroMax.Server.Services;
 using MicroMax.Server.Services.Assistant;
+using MicroMax.Server.Services.Assistant.Core;
+using MicroMax.Server.Services.Assistant.Execution;
+using MicroMax.Server.Services.Assistant.Providers;
+using MicroMax.Server.Services.Assistant.Recovery;
+using MicroMax.Server.Services.Assistant.Registry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -72,14 +77,16 @@ public sealed class AssistantServiceTests
 
     private static AssistantService CreateService(MicroMaxDbContext db)
     {
+        var registry = new AiCommandRegistry();
+        var rules = new AiCommandRules(registry);
         var providers = new IAiCommandProvider[]
         {
-            new MockAiCommandProvider()
+            new MockAiCommandProvider(rules)
         };
         var selector = new AiProviderSelector(
             providers,
             new AiProviderAvailability(),
-            new AiCommandNormalizer(),
+            new AiCommandNormalizer(registry, rules),
             NullLogger<AiProviderSelector>.Instance);
 
         return new AssistantService(db, selector);

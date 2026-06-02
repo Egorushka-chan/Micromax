@@ -1,14 +1,23 @@
 using System.Text;
 using System.Text.Json;
+using MicroMax.Server.Services.Assistant.Core;
+using MicroMax.Server.Services.Assistant.Registry;
 
-namespace MicroMax.Server.Services.Assistant;
+namespace MicroMax.Server.Services.Assistant.Prompting;
 
-public sealed class AiCommandPromptBuilder
+/// <summary>
+/// Формирует prompt для реальных ИИ-провайдеров на основе реестра команд и текущего складского контекста.
+/// </summary>
+public sealed class AiCommandPromptBuilder(AiCommandRegistry commandRegistry)
 {
     public string Build(AiCommandContext context, string text)
     {
         var products = context.Products.Select(x => new { x.Id, x.Name, x.Sku }).ToList();
         var cells = context.Cells.Select(x => new { x.Id, x.Code, x.Name }).ToList();
+        var commandTypes = commandRegistry.Commands.Select(x => x.Type).Append(AiCommandRegistry.Unknown).Distinct().ToList();
+        var risks = commandRegistry.Commands
+            .GroupBy(x => x.RiskLevel)
+            .ToDictionary(x => x.Key, x => x.Select(command => command.Type).ToList());
 
         var sb = new StringBuilder();
         sb.AppendLine("Ты командный помощник MicroMax для микросклада.");
@@ -18,9 +27,9 @@ public sealed class AiCommandPromptBuilder
         sb.AppendLine("Команды изменения данных требуют подтверждения на сервере.");
         sb.AppendLine();
         sb.AppendLine("Доступные commandType:");
-        sb.AppendLine("open_products, find_product, low_stock, zero_stock, warehouse_summary, create_product, update_min_stock, move_product, write_off_product, create_receipt, post_receipt, cancel, help, unknown.");
+        sb.AppendLine(string.Join(", ", commandTypes) + ".");
         sb.AppendLine("riskLevel: None, Low, Medium, High, Critical.");
-        sb.AppendLine("create_product/update_min_stock = Medium. move_product/write_off_product/post_receipt = High. create_receipt = Low. Остальные = None.");
+        sb.AppendLine($"Соответствие рисков: {JsonSerializer.Serialize(risks)}.");
         sb.AppendLine();
         sb.AppendLine("JSON schema shape:");
         sb.AppendLine("""
@@ -51,6 +60,7 @@ public sealed class AiCommandPromptBuilder
         sb.AppendLine("- Если не хватает количества или ячейки, верни Clarification с вопросом.");
         sb.AppendLine("- Nullable поля можно не указывать или вернуть null.");
         sb.AppendLine();
+        sb.AppendLine($"Описание команд: {JsonSerializer.Serialize(commandRegistry.Commands)}");
         sb.AppendLine($"Номенклатура: {JsonSerializer.Serialize(products)}");
         sb.AppendLine($"Ячейки: {JsonSerializer.Serialize(cells)}");
         sb.AppendLine($"Команда пользователя: {text}");

@@ -1,16 +1,21 @@
 using MicroMax.Server.Models;
+using MicroMax.Server.Services.Assistant.Core;
+using MicroMax.Server.Services.Assistant.Registry;
 
-namespace MicroMax.Server.Services.Assistant;
+namespace MicroMax.Server.Services.Assistant.Execution;
 
-public sealed class AiCommandNormalizer
+/// <summary>
+/// Приводит ответ ИИ к серверному контракту и отсекает неполные или небезопасные команды.
+/// </summary>
+public sealed class AiCommandNormalizer(AiCommandRegistry commandRegistry, AiCommandRules commandRules)
 {
     public AssistantCommand Normalize(AssistantCommand command, AiCommandContext context, AiProviderKind provider)
     {
         command.CommandId = string.IsNullOrWhiteSpace(command.CommandId) ? Guid.NewGuid().ToString("N") : command.CommandId;
         command.Provider = provider.ToString();
         command.Mode = NormalizeMode(command.Mode, command.CommandType);
-        command.CommandType = NormalizeCommandType(command.CommandType);
-        command.RiskLevel = AiCommandRules.RiskFor(command.CommandType);
+        command.CommandType = commandRegistry.NormalizeType(command.CommandType);
+        command.RiskLevel = commandRules.RiskFor(command.CommandType);
         command.RequiresConfirmation = command.Mode == "Command" && command.RiskLevel is "Medium" or "High" or "Critical";
 
         if (command.Mode == "Clarification")
@@ -30,7 +35,7 @@ public sealed class AiCommandNormalizer
 
         if (string.IsNullOrWhiteSpace(command.Summary))
         {
-            command.Summary = AiCommandRules.BuildSummary(command, context);
+            command.Summary = commandRules.BuildSummary(command, context);
         }
 
         return command;
@@ -51,19 +56,7 @@ public sealed class AiCommandNormalizer
         return "Command";
     }
 
-    private static string NormalizeCommandType(string? commandType)
-    {
-        var value = commandType?.Trim().ToLowerInvariant().Replace("-", "_") ?? "unknown";
-        return value switch
-        {
-            "receive" => "post_receipt",
-            "move" => "move_product",
-            "write_off" => "write_off_product",
-            _ => value
-        };
-    }
-
-    private static AssistantCommand? Validate(AssistantCommand command, AiCommandContext context)
+    private AssistantCommand? Validate(AssistantCommand command, AiCommandContext context)
     {
         if (command.Mode == "Unknown" || command.CommandType == "unknown")
         {
@@ -85,39 +78,55 @@ public sealed class AiCommandNormalizer
             return Clarification("Целевая ячейка не найдена. Уточните код ячейки.", []);
         }
 
-        if (AiCommandRules.RequiresProduct(command.CommandType) && command.ProductId is null)
+        var definition = commandRegistry.Find(command.CommandType);
+        if (definition?.RequiresProduct == true && command.ProductId is null)
         {
             return Clarification(
                 "Уточните товар: укажите название или SKU.",
                 context.Products.Take(6).Select(x => new AssistantChoice(x.Id.ToString(), $"{x.Name} · {x.Sku}", "product")).ToList());
         }
 
-        return command.CommandType switch
+        if (command.CommandType == "create_product" && string.IsNullOrWhiteSpace(command.Name))
         {
-            "create_product" when string.IsNullOrWhiteSpace(command.Name) =>
-                Clarification("Уточните название товара. Например: «Создай товар Перчатки SKU GLV-01 мин 5».", []),
-            "create_product" when string.IsNullOrWhiteSpace(command.Sku) =>
-                Clarification("Уточните SKU товара. Например: «Создай товар Перчатки SKU GLV-01».", []),
-            "create_product" when context.Products.Any(x => x.Sku.Equals(command.Sku, StringComparison.OrdinalIgnoreCase)) =>
-                Clarification("Товар с таким SKU уже существует.", []),
-            "update_min_stock" when command.MinQuantity is null or < 0 =>
-                Clarification("Укажите новое значение минимального остатка не ниже нуля.", []),
-            "move_product" when !HasPositiveQuantity(command) =>
-                Clarification("Укажите положительное количество для перемещения.", []),
-            "move_product" when command.SourceCellId is null || command.TargetCellId is null =>
-                Clarification("Укажите исходную и целевую ячейки.", CellChoices(context)),
-            "move_product" when command.SourceCellId == command.TargetCellId =>
-                Clarification("Исходная и целевая ячейки должны отличаться.", CellChoices(context)),
-            "write_off_product" when !HasPositiveQuantity(command) =>
-                Clarification("Укажите положительное количество для списания.", []),
-            "write_off_product" when command.SourceCellId is null =>
-                Clarification("Укажите исходную ячейку.", CellChoices(context)),
-            "post_receipt" when !HasPositiveQuantity(command) =>
-                Clarification("Укажите положительное количество для поступления.", []),
-            "post_receipt" when command.TargetCellId is null =>
-                Clarification("Укажите целевую ячейку для поступления.", CellChoices(context)),
-            _ => null
-        };
+            return Clarification("Уточните название товара. Например: «Создай товар Перчатки SKU GLV-01 мин 5».", []);
+        }
+
+        if (command.CommandType == "create_product" && string.IsNullOrWhiteSpace(command.Sku))
+        {
+            return Clarification("Уточните SKU товара. Например: «Создай товар Перчатки SKU GLV-01».", []);
+        }
+
+        if (command.CommandType == "create_product" && context.Products.Any(x => x.Sku.Equals(command.Sku, StringComparison.OrdinalIgnoreCase)))
+        {
+            return Clarification("Товар с таким SKU уже существует.", []);
+        }
+
+        if (command.CommandType == "update_min_stock" && command.MinQuantity is null or < 0)
+        {
+            return Clarification("Укажите новое значение минимального остатка не ниже нуля.", []);
+        }
+
+        if (definition?.RequiresQuantity == true && !HasPositiveQuantity(command))
+        {
+            return Clarification("Укажите положительное количество.", []);
+        }
+
+        if (definition?.RequiresSourceCell == true && command.SourceCellId is null)
+        {
+            return Clarification("Укажите исходную ячейку.", CellChoices(context));
+        }
+
+        if (definition?.RequiresTargetCell == true && command.TargetCellId is null)
+        {
+            return Clarification("Укажите целевую ячейку.", CellChoices(context));
+        }
+
+        if (definition?.RequiresSourceCell == true && definition.RequiresTargetCell && command.SourceCellId == command.TargetCellId)
+        {
+            return Clarification("Исходная и целевая ячейки должны отличаться.", CellChoices(context));
+        }
+
+        return null;
     }
 
     private static bool HasPositiveQuantity(AssistantCommand command) => command.Quantity is > 0;

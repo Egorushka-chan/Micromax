@@ -4,6 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 
 data class ProductDto(val id: Int, val sku: String, val name: String, val unit: String, val minQuantity: Double)
@@ -20,14 +21,38 @@ data class WarehouseSnapshot(
 
 data class AssistantCommandDto(
     val commandId: String,
+    val mode: String,
+    val provider: String,
     val commandType: String,
+    val riskLevel: String,
     val summary: String,
-    val requiresConfirmation: Boolean
+    val requiresConfirmation: Boolean,
+    val clarificationQuestion: String?,
+    val choices: List<AssistantChoiceDto>
 )
+data class AssistantChoiceDto(val id: String, val label: String, val kind: String)
+data class AssistantCommandDefinitionDto(
+    val type: String,
+    val title: String,
+    val description: String,
+    val riskLevel: String,
+    val examples: List<String>
+)
+data class AssistantCommandResultDto(val success: Boolean, val message: String, val details: List<String>)
 
 class MicroMaxApiClient(
     private val baseUrl: String = "http://10.0.2.2:5101"
 ) {
+    private data class RequestTimeouts(
+        val connectTimeoutMs: Int = 5000,
+        val readTimeoutMs: Int = 10000
+    )
+
+    private companion object {
+        val DefaultTimeouts = RequestTimeouts()
+        val AssistantTimeouts = RequestTimeouts(readTimeoutMs = 120000)
+    }
+
     fun loadSnapshot(): WarehouseSnapshot {
         return WarehouseSnapshot(
             products = getArray("/api/products").mapObjects {
@@ -76,7 +101,7 @@ class MicroMaxApiClient(
             put("targetCellId", targetCellId)
             put("quantity", quantity)
             put("userId", JSONObject.NULL)
-            put("comment", "Операция из мобильного приложения")
+            put("comment", "РћРїРµСЂР°С†РёСЏ РёР· РјРѕР±РёР»СЊРЅРѕРіРѕ РїСЂРёР»РѕР¶РµРЅРёСЏ")
         })
     }
 
@@ -86,7 +111,7 @@ class MicroMaxApiClient(
             put("sourceCellId", sourceCellId)
             put("quantity", quantity)
             put("userId", JSONObject.NULL)
-            put("comment", "Операция из мобильного приложения")
+            put("comment", "РћРїРµСЂР°С†РёСЏ РёР· РјРѕР±РёР»СЊРЅРѕРіРѕ РїСЂРёР»РѕР¶РµРЅРёСЏ")
         })
     }
 
@@ -97,7 +122,7 @@ class MicroMaxApiClient(
             put("targetCellId", targetCellId)
             put("quantity", quantity)
             put("userId", JSONObject.NULL)
-            put("comment", "Операция из мобильного приложения")
+            put("comment", "РћРїРµСЂР°С†РёСЏ РёР· РјРѕР±РёР»СЊРЅРѕРіРѕ РїСЂРёР»РѕР¶РµРЅРёСЏ")
         })
     }
 
@@ -137,64 +162,124 @@ class MicroMaxApiClient(
     }
 
     fun interpretAssistant(text: String): AssistantCommandDto {
-        val response = postJson("/api/assistant/interpret", JSONObject().put("text", text))
+        val response = postJson(
+            "/api/assistant/interpret",
+            JSONObject().put("text", text),
+            AssistantTimeouts
+        )
         return AssistantCommandDto(
             commandId = response.optString("commandId"),
+            mode = response.optString("mode"),
+            provider = response.optString("provider"),
             commandType = response.optString("commandType"),
+            riskLevel = response.optString("riskLevel"),
             summary = response.optString("summary"),
-            requiresConfirmation = response.optBoolean("requiresConfirmation")
+            requiresConfirmation = response.optBoolean("requiresConfirmation"),
+            clarificationQuestion = response.optNullableString("clarificationQuestion"),
+            choices = response.optJSONArray("choices")?.mapObjects {
+                AssistantChoiceDto(
+                    id = it.optString("id"),
+                    label = it.optString("label"),
+                    kind = it.optString("kind")
+                )
+            }.orEmpty()
         )
     }
 
-    fun confirmAssistant(commandId: String) {
-        postJson("/api/assistant/confirm", JSONObject().apply {
+    fun confirmAssistant(commandId: String): AssistantCommandResultDto {
+        val response = postJson("/api/assistant/confirm", JSONObject().apply {
             put("commandId", commandId)
             put("confirmed", true)
         })
+        return AssistantCommandResultDto(
+            success = response.optBoolean("success"),
+            message = response.optString("message"),
+            details = response.optJSONArray("details")?.mapStrings().orEmpty()
+        )
+    }
+
+    fun loadAssistantCommands(): List<AssistantCommandDefinitionDto> {
+        return getArray("/api/assistant/commands").mapObjects {
+            AssistantCommandDefinitionDto(
+                type = it.optString("type"),
+                title = it.optString("title"),
+                description = it.optString("description"),
+                riskLevel = it.optString("riskLevel"),
+                examples = it.optJSONArray("examples")?.mapStrings().orEmpty()
+            )
+        }
     }
 
     private fun getArray(path: String): JSONArray {
         val connection = openConnection(path, "GET")
-        return readResponse(connection).let(::JSONArray)
+        try {
+            return readResponse(connection).let(::JSONArray)
+        } finally {
+            connection.disconnect()
+        }
     }
 
-    private fun postJson(path: String, body: JSONObject): JSONObject {
-        val connection = openConnection(path, "POST")
-        connection.doOutput = true
-        connection.setRequestProperty("Content-Type", "application/json")
-        OutputStreamWriter(connection.outputStream).use { it.write(body.toString()) }
-        return readResponse(connection).let(::JSONObject)
+    private fun postJson(
+        path: String,
+        body: JSONObject,
+        timeouts: RequestTimeouts = DefaultTimeouts
+    ): JSONObject {
+        val connection = openConnection(path, "POST", timeouts)
+        try {
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            OutputStreamWriter(connection.outputStream).use { it.write(body.toString()) }
+            return readResponse(connection).let(::JSONObject)
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun putJson(path: String, body: JSONObject): JSONObject {
         val connection = openConnection(path, "PUT")
-        connection.doOutput = true
-        connection.setRequestProperty("Content-Type", "application/json")
-        OutputStreamWriter(connection.outputStream).use { it.write(body.toString()) }
-        return readResponse(connection).let(::JSONObject)
+        try {
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            OutputStreamWriter(connection.outputStream).use { it.write(body.toString()) }
+            return readResponse(connection).let(::JSONObject)
+        } finally {
+            connection.disconnect()
+        }
     }
 
-    private fun openConnection(path: String, method: String): HttpURLConnection {
+    private fun openConnection(
+        path: String,
+        method: String,
+        timeouts: RequestTimeouts = DefaultTimeouts
+    ): HttpURLConnection {
         return (URL("$baseUrl$path").openConnection() as HttpURLConnection).apply {
             requestMethod = method
-            connectTimeout = 5000
-            readTimeout = 10000
+            connectTimeout = timeouts.connectTimeoutMs
+            readTimeout = timeouts.readTimeoutMs
         }
     }
 
     private fun readResponse(connection: HttpURLConnection): String {
-        val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
-        val text = stream.bufferedReader().readText()
-        if (connection.responseCode !in 200..299) {
-            val message = runCatching { JSONObject(text).optString("error") }.getOrDefault(text)
-            error(message.ifBlank { "Ошибка сервера: ${connection.responseCode}" })
+        try {
+            val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
+            val text = stream.bufferedReader().use { it.readText() }
+            if (connection.responseCode !in 200..299) {
+                val message = runCatching { JSONObject(text).optString("error") }.getOrDefault(text)
+                error(message.ifBlank { "РћС€РёР±РєР° СЃРµСЂРІРµСЂР°: ${connection.responseCode}" })
+            }
+            return text
+        } catch (_: SocketTimeoutException) {
+            error("РР-РїРѕРјРѕС‰РЅРёРє РЅРµ СѓСЃРїРµР» РѕС‚РІРµС‚РёС‚СЊ Р·Р° РѕС‚РІРµРґС‘РЅРЅРѕРµ РІСЂРµРјСЏ.")
         }
-        return text
     }
 }
 
 private fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> {
     return (0 until length()).map { index -> transform(getJSONObject(index)) }
+}
+
+private fun JSONArray.mapStrings(): List<String> {
+    return (0 until length()).map { index -> optString(index) }
 }
 
 private fun JSONObject.optNullableString(name: String): String? {
