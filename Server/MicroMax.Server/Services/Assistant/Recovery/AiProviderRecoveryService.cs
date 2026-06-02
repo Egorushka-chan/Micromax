@@ -1,4 +1,5 @@
 using MicroMax.Server.Services.Assistant.Configuration;
+using MicroMax.Server.Services.Assistant.Core;
 using MicroMax.Server.Services.Assistant.Providers;
 using Microsoft.Extensions.Options;
 
@@ -25,7 +26,7 @@ public sealed class AiProviderRecoveryService(
                 var providers = scope.ServiceProvider
                     .GetServices<IAiCommandProvider>()
                     .Where(x => x.IsRealProvider)
-                    .OrderBy(x => x.Kind)
+                    .OrderBy(x => AiProviderPriorities.GetSortOrder(x.Kind))
                     .ToList();
 
                 foreach (var provider in providers)

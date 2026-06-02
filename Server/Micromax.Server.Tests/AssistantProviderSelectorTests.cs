@@ -13,7 +13,7 @@ public sealed class AssistantProviderSelectorTests
     private static readonly AiCommandContext EmptyContext = new([], []);
 
     [Fact]
-    public async Task UsesOllamaWhenAvailable()
+    public async Task UsesOpenAiWhenAvailable()
     {
         var ollama = new FakeProvider(AiProviderKind.Ollama, new AssistantCommand { Mode = "Command", CommandType = "help" });
         var openAi = new FakeProvider(AiProviderKind.OpenAi, new AssistantCommand { Mode = "Command", CommandType = "open_products" });
@@ -21,20 +21,20 @@ public sealed class AssistantProviderSelectorTests
 
         var result = await selector.InterpretAsync(EmptyContext, "помощь", CancellationToken.None);
 
-        Assert.Equal("Ollama", result.Provider);
-        Assert.Equal("help", result.CommandType);
+        Assert.Equal("OpenAi", result.Provider);
+        Assert.Equal("open_products", result.CommandType);
     }
 
     [Fact]
-    public async Task FallsBackToOpenAiWhenOllamaFails()
+    public async Task FallsBackToOllamaWhenOpenAiFails()
     {
-        var ollama = new FakeProvider(AiProviderKind.Ollama, failure: new InvalidOperationException("ollama down"));
-        var openAi = new FakeProvider(AiProviderKind.OpenAi, new AssistantCommand { Mode = "Command", CommandType = "help" });
+        var ollama = new FakeProvider(AiProviderKind.Ollama, new AssistantCommand { Mode = "Command", CommandType = "help" });
+        var openAi = new FakeProvider(AiProviderKind.OpenAi, failure: new InvalidOperationException("openai down"));
         var selector = CreateSelector(ollama, openAi, CreateMock());
 
         var result = await selector.InterpretAsync(EmptyContext, "помощь", CancellationToken.None);
 
-        Assert.Equal("OpenAi", result.Provider);
+        Assert.Equal("Ollama", result.Provider);
         Assert.Equal("help", result.CommandType);
     }
 
@@ -52,28 +52,28 @@ public sealed class AssistantProviderSelectorTests
     }
 
     [Fact]
-    public async Task ReturnsToOllamaAfterAvailabilityRestored()
+    public async Task ReturnsToOpenAiAfterAvailabilityRestored()
     {
         var availability = new AiProviderAvailability();
-        availability.MarkUnavailable(AiProviderKind.Ollama);
+        availability.MarkUnavailable(AiProviderKind.OpenAi);
 
-        var ollama = new FakeProvider(AiProviderKind.Ollama, new AssistantCommand { Mode = "Command", CommandType = "help" });
-        var openAi = new FakeProvider(AiProviderKind.OpenAi, failure: new InvalidOperationException("openai down"));
+        var ollama = new FakeProvider(AiProviderKind.Ollama, failure: new InvalidOperationException("ollama down"));
+        var openAi = new FakeProvider(AiProviderKind.OpenAi, new AssistantCommand { Mode = "Command", CommandType = "help" });
         var selector = CreateSelector(availability, ollama, openAi, CreateMock());
 
         var first = await selector.InterpretAsync(EmptyContext, "покажи доступные команды", CancellationToken.None);
-        availability.MarkAvailable(AiProviderKind.Ollama);
+        availability.MarkAvailable(AiProviderKind.OpenAi);
         var second = await selector.InterpretAsync(EmptyContext, "помощь", CancellationToken.None);
 
         Assert.Equal("Mock", first.Provider);
-        Assert.Equal("Ollama", second.Provider);
+        Assert.Equal("OpenAi", second.Provider);
     }
 
     [Fact]
     public async Task InvalidRealProviderResponseFallsBack()
     {
-        var ollama = new FakeProvider(AiProviderKind.Ollama, new AssistantCommand { Mode = "Command", CommandType = "find_product", ProductId = 404 });
-        var openAi = new FakeProvider(AiProviderKind.OpenAi, new AssistantCommand { Mode = "Command", CommandType = "help" });
+        var ollama = new FakeProvider(AiProviderKind.Ollama, new AssistantCommand { Mode = "Command", CommandType = "help" });
+        var openAi = new FakeProvider(AiProviderKind.OpenAi, new AssistantCommand { Mode = "Command", CommandType = "find_product", ProductId = 404 });
         var selector = CreateSelector(ollama, openAi, CreateMock());
 
         var result = await selector.InterpretAsync(EmptyContext, "найди товар", CancellationToken.None);
@@ -87,13 +87,13 @@ public sealed class AssistantProviderSelectorTests
     {
         var availability = new AiProviderAvailability();
         var ollama = new ResilientFakeProvider();
-        var openAi = new FakeProvider(AiProviderKind.OpenAi, new AssistantCommand { Mode = "Command", CommandType = "help" });
+        var openAi = new FakeProvider(AiProviderKind.OpenAi, failure: new InvalidOperationException("openai down"));
         var selector = CreateSelector(availability, ollama, openAi, CreateMock());
 
         var first = await selector.InterpretAsync(EmptyContext, "помощь", CancellationToken.None);
         var second = await selector.InterpretAsync(EmptyContext, "помощь", CancellationToken.None);
 
-        Assert.Equal("OpenAi", first.Provider);
+        Assert.Equal("Mock", first.Provider);
         Assert.Equal("Ollama", second.Provider);
         Assert.True(availability.IsAvailable(AiProviderKind.Ollama));
     }
@@ -192,7 +192,7 @@ public sealed class AssistantProviderSelectorTests
 
     private sealed class CancellingFakeProvider : IAiCommandProvider
     {
-        public AiProviderKind Kind => AiProviderKind.Ollama;
+        public AiProviderKind Kind => AiProviderKind.OpenAi;
         public bool IsRealProvider => true;
 
         public Task<bool> ProbeAsync(CancellationToken cancellationToken) => Task.FromResult(true);

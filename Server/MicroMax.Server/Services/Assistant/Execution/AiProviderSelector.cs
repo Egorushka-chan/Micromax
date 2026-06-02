@@ -14,7 +14,7 @@ public sealed class AiProviderSelector(
     AiCommandNormalizer normalizer,
     ILogger<AiProviderSelector> logger)
 {
-    private readonly IReadOnlyList<IAiCommandProvider> _providers = [.. providers.OrderBy(static x => x.Kind)];
+    private readonly IReadOnlyList<IAiCommandProvider> _providers = [.. providers.OrderBy(static x => AiProviderPriorities.GetSortOrder(x.Kind))];
 
     public async Task<AssistantCommand> InterpretAsync(AiCommandContext context, string text, CancellationToken cancellationToken)
     {

@@ -50,7 +50,7 @@ class MicroMaxApiClient(
 
     private companion object {
         val DefaultTimeouts = RequestTimeouts()
-        val AssistantTimeouts = RequestTimeouts(readTimeoutMs = 120000)
+        val AssistantTimeouts = RequestTimeouts(readTimeoutMs = 210000)
     }
 
     fun loadSnapshot(): WarehouseSnapshot {
