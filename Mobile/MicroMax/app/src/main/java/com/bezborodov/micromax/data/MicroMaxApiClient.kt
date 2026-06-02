@@ -118,6 +118,24 @@ class MicroMaxApiClient(
         )
     }
 
+    fun updateProductMinQuantity(product: ProductDto, minQuantity: Double): ProductDto {
+        val response = putJson("/api/products/${product.id}", JSONObject().apply {
+            put("id", product.id)
+            put("sku", product.sku)
+            put("name", product.name)
+            put("unit", product.unit)
+            put("minQuantity", minQuantity)
+        })
+
+        return ProductDto(
+            id = response.getInt("id"),
+            sku = response.optString("sku"),
+            name = response.optString("name"),
+            unit = response.optString("unit"),
+            minQuantity = response.optDouble("minQuantity")
+        )
+    }
+
     fun interpretAssistant(text: String): AssistantCommandDto {
         val response = postJson("/api/assistant/interpret", JSONObject().put("text", text))
         return AssistantCommandDto(
@@ -142,6 +160,14 @@ class MicroMaxApiClient(
 
     private fun postJson(path: String, body: JSONObject): JSONObject {
         val connection = openConnection(path, "POST")
+        connection.doOutput = true
+        connection.setRequestProperty("Content-Type", "application/json")
+        OutputStreamWriter(connection.outputStream).use { it.write(body.toString()) }
+        return readResponse(connection).let(::JSONObject)
+    }
+
+    private fun putJson(path: String, body: JSONObject): JSONObject {
+        val connection = openConnection(path, "PUT")
         connection.doOutput = true
         connection.setRequestProperty("Content-Type", "application/json")
         OutputStreamWriter(connection.outputStream).use { it.write(body.toString()) }

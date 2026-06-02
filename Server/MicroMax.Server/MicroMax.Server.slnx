@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="MicroMax.Server.csproj" />
+  <Project Path="..\Micromax.Server.Tests\Micromax.Server.Tests.csproj" />
 </Solution>

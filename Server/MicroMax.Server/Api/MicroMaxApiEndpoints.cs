@@ -106,11 +106,11 @@ public static class MicroMaxApiEndpoints
             }
         });
 
-        api.MapPost("/assistant/confirm", async (AssistantConfirmationRequest request, WarehouseOperationService operations) =>
+        api.MapPost("/assistant/confirm", async (AssistantConfirmationRequest request, WarehouseOperationService operations, MicroMaxDbContext db) =>
         {
             if (!request.Confirmed)
             {
-                return Results.Ok(new { status = "cancelled" });
+                return Results.Ok(new AssistantCommandResult(true, "Команда отменена.", []));
             }
 
             if (!AssistantService.TryTakePendingCommand(request.CommandId, out var command) || command is null)
@@ -120,18 +120,30 @@ public static class MicroMaxApiEndpoints
 
             try
             {
-                var result = command.CommandType switch
+                var operation = command.CommandType switch
                 {
-                    "receive" when command.ProductId is not null && command.TargetCellId is not null && command.Quantity is not null =>
+                    "post_receipt" when command.ProductId is not null && command.TargetCellId is not null && command.Quantity is not null =>
                         await operations.ReceiveAsync(new ReceiveRequest(command.ProductId.Value, command.TargetCellId.Value, command.Quantity.Value, null, command.Summary)),
                     "move" when command.ProductId is not null && command.SourceCellId is not null && command.TargetCellId is not null && command.Quantity is not null =>
                         await operations.MoveAsync(new MoveRequest(command.ProductId.Value, command.SourceCellId.Value, command.TargetCellId.Value, command.Quantity.Value, null, command.Summary)),
+                    "move_product" when command.ProductId is not null && command.SourceCellId is not null && command.TargetCellId is not null && command.Quantity is not null =>
+                        await operations.MoveAsync(new MoveRequest(command.ProductId.Value, command.SourceCellId.Value, command.TargetCellId.Value, command.Quantity.Value, null, command.Summary)),
                     "write_off" when command.ProductId is not null && command.SourceCellId is not null && command.Quantity is not null =>
                         await operations.WriteOffAsync(new WriteOffRequest(command.ProductId.Value, command.SourceCellId.Value, command.Quantity.Value, null, command.Summary)),
+                    "write_off_product" when command.ProductId is not null && command.SourceCellId is not null && command.Quantity is not null =>
+                        await operations.WriteOffAsync(new WriteOffRequest(command.ProductId.Value, command.SourceCellId.Value, command.Quantity.Value, null, command.Summary)),
+                    "create_product" when !string.IsNullOrWhiteSpace(command.Sku) && !string.IsNullOrWhiteSpace(command.Name) =>
+                        await CreateProductFromCommandAsync(command, db),
+                    "update_min_stock" when command.ProductId is not null && command.MinQuantity is not null =>
+                        await UpdateMinQuantityFromCommandAsync(command, db),
                     _ => throw new InvalidOperationException("Команда не содержит достаточных данных для выполнения.")
                 };
 
-                return Results.Ok(new { status = "completed", operationId = result.Id });
+                return Results.Ok(new AssistantCommandResult(
+                    true,
+                    "Команда подтверждена и выполнена.",
+                    [operation is null ? command.Summary : $"Операция #{operation.Id}: {operation.Type}"]
+                ));
             }
             catch (InvalidOperationException ex)
             {
@@ -198,5 +210,27 @@ public static class MicroMaxApiEndpoints
         db.Remove(item);
         await db.SaveChangesAsync();
         return Results.NoContent();
+    }
+
+    private static async Task<WarehouseOperation?> CreateProductFromCommandAsync(AssistantCommand command, MicroMaxDbContext db)
+    {
+        db.Products.Add(new Product
+        {
+            Sku = command.Sku!.Trim(),
+            Name = command.Name!.Trim(),
+            Unit = string.IsNullOrWhiteSpace(command.Unit) ? "шт" : command.Unit.Trim(),
+            MinQuantity = command.MinQuantity ?? 0
+        });
+        await db.SaveChangesAsync();
+        return null;
+    }
+
+    private static async Task<WarehouseOperation?> UpdateMinQuantityFromCommandAsync(AssistantCommand command, MicroMaxDbContext db)
+    {
+        var product = await db.Products.FindAsync(command.ProductId!.Value)
+            ?? throw new InvalidOperationException("Номенклатура не найдена.");
+        product.MinQuantity = command.MinQuantity!.Value;
+        await db.SaveChangesAsync();
+        return null;
     }
 }

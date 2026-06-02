@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowForwardIos
@@ -27,7 +26,6 @@ import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Button
@@ -49,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.bezborodov.micromax.ui.assistant.AiCommandButton
 
 val ScreenBg = Color(0xFFF3F3F3)
 val Accent = Color(0xFF5865F2)
@@ -419,7 +418,8 @@ fun MenuLeadingIcon(icon: HomeMenuIcon) {
 @Composable
 fun HomeBottomBar(
     selectedTab: BottomTab,
-    onTabClick: (BottomTab) -> Unit
+    onTabClick: (BottomTab) -> Unit,
+    onAssistantClick: () -> Unit = { onTabClick(BottomTab.Assistant) }
 ) {
     NavigationBar(
         containerColor = Color.White,
@@ -440,22 +440,12 @@ fun HomeBottomBar(
             label = { Text("Товары") }
         )
 
-        Box(
+        AiCommandButton(
+            onClick = onAssistantClick,
             modifier = Modifier
                 .padding(horizontal = 8.dp)
                 .size(58.dp)
-                .clip(CircleShape)
-                .background(AccentDark)
-                .clickable { onTabClick(BottomTab.Assistant) },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.SmartToy,
-                contentDescription = "Ассистент",
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
-            )
-        }
+        )
 
         NavigationBarItem(
             selected = selectedTab == BottomTab.Transactions,

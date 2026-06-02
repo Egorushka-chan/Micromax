@@ -123,11 +123,23 @@ public sealed record AssistantConfirmationRequest(string CommandId, bool Confirm
 public sealed class AssistantCommand
 {
     public string CommandId { get; set; } = Guid.NewGuid().ToString("N");
+    public string Mode { get; set; } = "Command";
+    public string Provider { get; set; } = "Mock";
     public string CommandType { get; set; } = "unknown";
+    public string RiskLevel { get; set; } = "None";
     public int? ProductId { get; set; }
     public int? SourceCellId { get; set; }
     public int? TargetCellId { get; set; }
     public decimal? Quantity { get; set; }
+    public decimal? MinQuantity { get; set; }
+    public string? Sku { get; set; }
+    public string? Name { get; set; }
+    public string? Unit { get; set; }
     public bool RequiresConfirmation { get; set; }
     public string Summary { get; set; } = string.Empty;
+    public string? ClarificationQuestion { get; set; }
+    public List<AssistantChoice> Choices { get; set; } = [];
 }
+
+public sealed record AssistantCommandResult(bool Success, string Message, IReadOnlyList<string> Details);
+public sealed record AssistantChoice(string Id, string Label, string Kind);
