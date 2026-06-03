@@ -164,6 +164,14 @@ private sealed interface OperationListItem {
     data class OperationEntry(val operation: OperationDto) : OperationListItem
 }
 
+private data class OperationEditorState(
+    val mode: OperationsMode,
+    val activeType: OperationType,
+    val selectedProduct: ProductDto?,
+    val selectedSourceCell: CellDto?,
+    val selectedTargetCell: CellDto?
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OperationsScreen(
@@ -178,28 +186,40 @@ fun OperationsScreen(
     val products = state.snapshot.products
     val cells = state.snapshot.cells
     val stocks = state.snapshot.stocks
+    val initialEditorState = buildInitialEditorState(
+        requestedOperationType = requestedOperationType,
+        products = products,
+        cells = cells,
+        stocks = stocks
+    )
 
-    var mode by remember { mutableStateOf<OperationsMode>(OperationsMode.List) }
+    // Инициализируем экран сразу нужной формой, чтобы не было краткого показа списка операций.
+    var mode by remember { mutableStateOf(initialEditorState.mode) }
     var filter by remember { mutableStateOf(OperationFilter.All) }
     var isTypeSheetVisible by remember { mutableStateOf(false) }
 
-    var activeType by remember { mutableStateOf(OperationType.Receive) }
-    var selectedProduct by remember { mutableStateOf<ProductDto?>(null) }
-    var selectedSourceCell by remember { mutableStateOf<CellDto?>(null) }
-    var selectedTargetCell by remember { mutableStateOf<CellDto?>(null) }
+    var activeType by remember { mutableStateOf(initialEditorState.activeType) }
+    var selectedProduct by remember { mutableStateOf(initialEditorState.selectedProduct) }
+    var selectedSourceCell by remember { mutableStateOf(initialEditorState.selectedSourceCell) }
+    var selectedTargetCell by remember { mutableStateOf(initialEditorState.selectedTargetCell) }
     var quantity by remember { mutableStateOf("") }
     var comment by remember { mutableStateOf("") }
     var validationMessage by remember { mutableStateOf<String?>(null) }
 
     fun availableQuantity(product: ProductDto?, cell: CellDto?): Double {
-        if (product == null || cell == null) return 0.0
-        return stocks
-            .filter { it.sku == product.sku && it.cellCode == cell.code }
-            .sumOf(StockDto::quantity)
+        return calculateAvailableQuantity(
+            stocks = stocks,
+            product = product,
+            cell = cell
+        )
     }
 
     fun sourceCells(product: ProductDto?): List<CellDto> {
-        return cells.filter { availableQuantity(product, it) > 0.0 }
+        return calculateSourceCells(
+            cells = cells,
+            stocks = stocks,
+            product = product
+        )
     }
 
     fun syncSelections(type: OperationType) {
@@ -1142,6 +1162,68 @@ private fun buildOperationListItems(operations: List<OperationDto>): List<Operat
 
 private fun parseOperationDate(value: String): OffsetDateTime? {
     return runCatching { OffsetDateTime.parse(value) }.getOrNull()
+}
+
+private fun buildInitialEditorState(
+    requestedOperationType: OperationType?,
+    products: List<ProductDto>,
+    cells: List<CellDto>,
+    stocks: List<StockDto>
+): OperationEditorState {
+    val activeType = requestedOperationType ?: OperationType.Receive
+    val selectedProduct = products.firstOrNull()
+    val sourceCells = calculateSourceCells(
+        cells = cells,
+        stocks = stocks,
+        product = selectedProduct
+    )
+    val selectedSourceCell = when (activeType) {
+        OperationType.WriteOff,
+        OperationType.Move -> sourceCells.firstOrNull()
+
+        OperationType.Receive,
+        OperationType.Adjust -> null
+    }
+    val selectedTargetCell = when (activeType) {
+        OperationType.Receive,
+        OperationType.Adjust -> cells.firstOrNull()
+
+        OperationType.Move -> cells.firstOrNull { it.id != selectedSourceCell?.id }
+        OperationType.WriteOff -> null
+    }
+
+    return OperationEditorState(
+        mode = requestedOperationType?.let(OperationsMode::Create) ?: OperationsMode.List,
+        activeType = activeType,
+        selectedProduct = selectedProduct,
+        selectedSourceCell = selectedSourceCell,
+        selectedTargetCell = selectedTargetCell
+    )
+}
+
+private fun calculateAvailableQuantity(
+    stocks: List<StockDto>,
+    product: ProductDto?,
+    cell: CellDto?
+): Double {
+    if (product == null || cell == null) return 0.0
+    return stocks
+        .filter { it.sku == product.sku && it.cellCode == cell.code }
+        .sumOf(StockDto::quantity)
+}
+
+private fun calculateSourceCells(
+    cells: List<CellDto>,
+    stocks: List<StockDto>,
+    product: ProductDto?
+): List<CellDto> {
+    return cells.filter { cell ->
+        calculateAvailableQuantity(
+            stocks = stocks,
+            product = product,
+            cell = cell
+        ) > 0.0
+    }
 }
 
 private fun formatQuantity(value: Double): String {
