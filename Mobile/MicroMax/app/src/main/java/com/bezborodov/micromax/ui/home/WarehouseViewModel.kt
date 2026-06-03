@@ -47,23 +47,30 @@ class WarehouseViewModel(
         }
     }
 
-    fun receive(productId: Int, targetCellId: Int, quantity: Double) {
+    fun receive(productId: Int, targetCellId: Int, quantity: Double, comment: String? = null) {
         runChangingOperation(successMessage = "Приход выполнен") {
-            apiClient.receive(productId, targetCellId, quantity)
+            apiClient.receive(productId, targetCellId, quantity, comment)
             apiClient.loadSnapshot()
         }
     }
 
-    fun writeOff(productId: Int, sourceCellId: Int, quantity: Double) {
+    fun writeOff(productId: Int, sourceCellId: Int, quantity: Double, comment: String? = null) {
         runChangingOperation(successMessage = "Расход выполнен") {
-            apiClient.writeOff(productId, sourceCellId, quantity)
+            apiClient.writeOff(productId, sourceCellId, quantity, comment)
             apiClient.loadSnapshot()
         }
     }
 
-    fun move(productId: Int, sourceCellId: Int, targetCellId: Int, quantity: Double) {
+    fun move(productId: Int, sourceCellId: Int, targetCellId: Int, quantity: Double, comment: String? = null) {
         runChangingOperation(successMessage = "Перемещение выполнено") {
-            apiClient.move(productId, sourceCellId, targetCellId, quantity)
+            apiClient.move(productId, sourceCellId, targetCellId, quantity, comment)
+            apiClient.loadSnapshot()
+        }
+    }
+
+    fun adjust(productId: Int, targetCellId: Int, targetQuantity: Double, comment: String? = null) {
+        runChangingOperation(successMessage = "Корректировка выполнена") {
+            apiClient.adjust(productId, targetCellId, targetQuantity, comment)
             apiClient.loadSnapshot()
         }
     }

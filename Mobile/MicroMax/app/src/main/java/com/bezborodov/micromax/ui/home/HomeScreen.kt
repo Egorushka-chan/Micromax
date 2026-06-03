@@ -32,6 +32,7 @@ import com.bezborodov.micromax.ui.components.MessageBanner
 import com.bezborodov.micromax.ui.components.ScreenBg
 import com.bezborodov.micromax.ui.items.ItemsScreen
 import com.bezborodov.micromax.ui.items.ItemsStartDestination
+import com.bezborodov.micromax.ui.operations.OperationType
 import com.bezborodov.micromax.ui.operations.OperationsScreen
 import com.bezborodov.micromax.ui.theme.MicroMaxTheme
 
@@ -43,6 +44,7 @@ fun HomeScreen(
 ) {
     var selectedTab by remember { mutableStateOf(BottomTab.Home) }
     var itemsStartDestination by remember { mutableStateOf(ItemsStartDestination.List) }
+    var pendingOperationType by remember { mutableStateOf<OperationType?>(null) }
     val state = viewModel.uiState
     val assistantState = assistantViewModel.uiState
     val hasLoadedData = state.snapshot.products.isNotEmpty() ||
@@ -114,7 +116,10 @@ fun HomeScreen(
                                 selectedTab = BottomTab.Items
                             },
                             onOpenCells = { selectedTab = BottomTab.Cells },
-                            onOpenOperations = { selectedTab = BottomTab.Transactions },
+                            onOpenOperation = { type ->
+                                pendingOperationType = type
+                                selectedTab = BottomTab.Transactions
+                            },
                             onOpenAssistant = assistantViewModel::open
                         )
 
@@ -144,16 +149,22 @@ fun HomeScreen(
                                     selectedTab = BottomTab.Items
                                 },
                                 onOpenCells = { selectedTab = BottomTab.Cells },
-                                onOpenOperations = { selectedTab = BottomTab.Transactions },
+                                onOpenOperation = { type ->
+                                    pendingOperationType = type
+                                    selectedTab = BottomTab.Transactions
+                                },
                                 onOpenAssistant = assistantViewModel::open
                             )
                         }
 
                         BottomTab.Transactions -> OperationsScreen(
                             state = state,
+                            requestedOperationType = pendingOperationType,
+                            onRequestedOperationConsumed = { pendingOperationType = null },
                             onReceive = viewModel::receive,
                             onWriteOff = viewModel::writeOff,
-                            onMove = viewModel::move
+                            onMove = viewModel::move,
+                            onAdjust = viewModel::adjust
                         )
 
                         BottomTab.Settings -> SettingsScreen(

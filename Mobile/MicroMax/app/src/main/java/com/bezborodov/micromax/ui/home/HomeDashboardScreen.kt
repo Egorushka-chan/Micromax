@@ -14,6 +14,7 @@ import com.bezborodov.micromax.ui.components.HomeMenuItem
 import com.bezborodov.micromax.ui.components.SearchBarBlock
 import com.bezborodov.micromax.ui.components.SectionCard
 import com.bezborodov.micromax.ui.components.TextSecondary
+import com.bezborodov.micromax.ui.operations.OperationType
 
 @Composable
 fun HomeDashboardScreen(
@@ -22,7 +23,7 @@ fun HomeDashboardScreen(
     onOpenItems: () -> Unit,
     onOpenAddItem: () -> Unit,
     onOpenCells: () -> Unit,
-    onOpenOperations: () -> Unit,
+    onOpenOperation: (OperationType) -> Unit,
     onOpenAssistant: () -> Unit
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -70,15 +71,19 @@ fun HomeDashboardScreen(
             SectionCard(title = "Транзакции") {
                 ActionMenuRow(
                     item = HomeMenuItem("Приход", "Принять товар в ячейку", HomeMenuIcon.Receive),
-                    onClick = onOpenOperations
+                    onClick = { onOpenOperation(OperationType.Receive) }
                 )
                 ActionMenuRow(
                     item = HomeMenuItem("Расход", "Списать товар из ячейки", HomeMenuIcon.WriteOff),
-                    onClick = onOpenOperations
+                    onClick = { onOpenOperation(OperationType.WriteOff) }
                 )
                 ActionMenuRow(
                     item = HomeMenuItem("Перемещение", "Перенести товар между ячейками", HomeMenuIcon.Move),
-                    onClick = onOpenOperations
+                    onClick = { onOpenOperation(OperationType.Move) }
+                )
+                ActionMenuRow(
+                    item = HomeMenuItem("Корректировка", "Установить точный остаток в ячейке", HomeMenuIcon.Adjust),
+                    onClick = { onOpenOperation(OperationType.Adjust) }
                 )
             }
         }

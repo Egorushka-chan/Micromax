@@ -10,7 +10,17 @@ import java.net.URL
 data class ProductDto(val id: Int, val sku: String, val name: String, val unit: String, val minQuantity: Double)
 data class CellDto(val id: Int, val code: String, val name: String)
 data class StockDto(val productName: String, val sku: String, val cellCode: String, val zoneCode: String, val quantity: Double, val unit: String)
-data class OperationDto(val id: Int, val type: String, val productName: String, val sourceCell: String?, val targetCell: String?, val quantity: Double, val createdAt: String)
+data class OperationDto(
+    val id: Int,
+    val type: String,
+    val productName: String,
+    val sourceCell: String?,
+    val targetCell: String?,
+    val quantity: Double,
+    val comment: String?,
+    val createdAt: String
+)
+
 data class CreateProductRequest(val sku: String, val name: String, val unit: String, val minQuantity: Double)
 data class WarehouseSnapshot(
     val products: List<ProductDto> = emptyList(),
@@ -30,6 +40,7 @@ data class AssistantCommandDto(
     val clarificationQuestion: String?,
     val choices: List<AssistantChoiceDto>
 )
+
 data class AssistantChoiceDto(val id: String, val label: String, val kind: String)
 data class AssistantCommandDefinitionDto(
     val type: String,
@@ -38,6 +49,7 @@ data class AssistantCommandDefinitionDto(
     val riskLevel: String,
     val examples: List<String>
 )
+
 data class AssistantCommandResultDto(val success: Boolean, val message: String, val details: List<String>)
 
 class MicroMaxApiClient(
@@ -51,6 +63,7 @@ class MicroMaxApiClient(
     private companion object {
         val DefaultTimeouts = RequestTimeouts()
         val AssistantTimeouts = RequestTimeouts(readTimeoutMs = 210000)
+        const val MobileComment = "Операция из мобильного приложения"
     }
 
     fun loadSnapshot(): WarehouseSnapshot {
@@ -89,40 +102,51 @@ class MicroMaxApiClient(
                     sourceCell = it.optNullableString("sourceCell"),
                     targetCell = it.optNullableString("targetCell"),
                     quantity = it.optDouble("quantity"),
+                    comment = it.optNullableString("comment"),
                     createdAt = it.optString("createdAt")
                 )
             }
         )
     }
 
-    fun receive(productId: Int, targetCellId: Int, quantity: Double) {
+    fun receive(productId: Int, targetCellId: Int, quantity: Double, comment: String? = null) {
         postJson("/api/operations/receive", JSONObject().apply {
             put("productId", productId)
             put("targetCellId", targetCellId)
             put("quantity", quantity)
             put("userId", JSONObject.NULL)
-            put("comment", "РћРїРµСЂР°С†РёСЏ РёР· РјРѕР±РёР»СЊРЅРѕРіРѕ РїСЂРёР»РѕР¶РµРЅРёСЏ")
+            put("comment", buildComment(comment))
         })
     }
 
-    fun writeOff(productId: Int, sourceCellId: Int, quantity: Double) {
+    fun writeOff(productId: Int, sourceCellId: Int, quantity: Double, comment: String? = null) {
         postJson("/api/operations/write-off", JSONObject().apply {
             put("productId", productId)
             put("sourceCellId", sourceCellId)
             put("quantity", quantity)
             put("userId", JSONObject.NULL)
-            put("comment", "РћРїРµСЂР°С†РёСЏ РёР· РјРѕР±РёР»СЊРЅРѕРіРѕ РїСЂРёР»РѕР¶РµРЅРёСЏ")
+            put("comment", buildComment(comment))
         })
     }
 
-    fun move(productId: Int, sourceCellId: Int, targetCellId: Int, quantity: Double) {
+    fun move(productId: Int, sourceCellId: Int, targetCellId: Int, quantity: Double, comment: String? = null) {
         postJson("/api/operations/move", JSONObject().apply {
             put("productId", productId)
             put("sourceCellId", sourceCellId)
             put("targetCellId", targetCellId)
             put("quantity", quantity)
             put("userId", JSONObject.NULL)
-            put("comment", "РћРїРµСЂР°С†РёСЏ РёР· РјРѕР±РёР»СЊРЅРѕРіРѕ РїСЂРёР»РѕР¶РµРЅРёСЏ")
+            put("comment", buildComment(comment))
+        })
+    }
+
+    fun adjust(productId: Int, targetCellId: Int, targetQuantity: Double, comment: String? = null) {
+        postJson("/api/operations/adjust", JSONObject().apply {
+            put("productId", productId)
+            put("targetCellId", targetCellId)
+            put("targetQuantity", targetQuantity)
+            put("userId", JSONObject.NULL)
+            put("comment", buildComment(comment))
         })
     }
 
@@ -210,6 +234,11 @@ class MicroMaxApiClient(
         }
     }
 
+    private fun buildComment(comment: String?): String {
+        val userComment = comment?.trim().orEmpty()
+        return if (userComment.isEmpty()) MobileComment else userComment
+    }
+
     private fun getArray(path: String): JSONArray {
         val connection = openConnection(path, "GET")
         try {
@@ -265,11 +294,11 @@ class MicroMaxApiClient(
             val text = stream.bufferedReader().use { it.readText() }
             if (connection.responseCode !in 200..299) {
                 val message = runCatching { JSONObject(text).optString("error") }.getOrDefault(text)
-                error(message.ifBlank { "РћС€РёР±РєР° СЃРµСЂРІРµСЂР°: ${connection.responseCode}" })
+                error(message.ifBlank { "Ошибка сервера: ${connection.responseCode}" })
             }
             return text
         } catch (_: SocketTimeoutException) {
-            error("РР-РїРѕРјРѕС‰РЅРёРє РЅРµ СѓСЃРїРµР» РѕС‚РІРµС‚РёС‚СЊ Р·Р° РѕС‚РІРµРґС‘РЅРЅРѕРµ РІСЂРµРјСЏ.")
+            error("ИИ-помощник не успел ответить за отведённое время.")
         }
     }
 }

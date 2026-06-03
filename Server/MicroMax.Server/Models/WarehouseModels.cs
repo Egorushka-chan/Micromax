@@ -6,7 +6,8 @@ public enum WarehouseOperationType
 {
     Receive = 1,
     Move = 2,
-    WriteOff = 3
+    WriteOff = 3,
+    Adjust = 4
 }
 
 public sealed class Warehouse
@@ -117,6 +118,7 @@ public sealed class OperationLog
 public sealed record ReceiveRequest(int ProductId, int TargetCellId, decimal Quantity, int? UserId, string? Comment);
 public sealed record MoveRequest(int ProductId, int SourceCellId, int TargetCellId, decimal Quantity, int? UserId, string? Comment);
 public sealed record WriteOffRequest(int ProductId, int SourceCellId, decimal Quantity, int? UserId, string? Comment);
+public sealed record AdjustRequest(int ProductId, int TargetCellId, decimal TargetQuantity, int? UserId, string? Comment);
 public sealed record AssistantRequest(string Text);
 public sealed record AssistantConfirmationRequest(string CommandId, bool Confirmed);
 

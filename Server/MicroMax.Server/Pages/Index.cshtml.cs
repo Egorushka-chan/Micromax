@@ -76,6 +76,7 @@ public sealed class IndexModel(MicroMaxDbContext db, WarehouseOperationService o
                 WarehouseOperationType.Receive => await operations.ReceiveAsync(new ReceiveRequest(OperationForm.ProductId, OperationForm.TargetCellId!.Value, OperationForm.Quantity, OperationForm.UserId, OperationForm.Comment)),
                 WarehouseOperationType.Move => await operations.MoveAsync(new MoveRequest(OperationForm.ProductId, OperationForm.SourceCellId!.Value, OperationForm.TargetCellId!.Value, OperationForm.Quantity, OperationForm.UserId, OperationForm.Comment)),
                 WarehouseOperationType.WriteOff => await operations.WriteOffAsync(new WriteOffRequest(OperationForm.ProductId, OperationForm.SourceCellId!.Value, OperationForm.Quantity, OperationForm.UserId, OperationForm.Comment)),
+                WarehouseOperationType.Adjust => await operations.AdjustAsync(new AdjustRequest(OperationForm.ProductId, OperationForm.TargetCellId!.Value, OperationForm.Quantity, OperationForm.UserId, OperationForm.Comment)),
                 _ => throw new InvalidOperationException("Неизвестный тип операции.")
             };
 

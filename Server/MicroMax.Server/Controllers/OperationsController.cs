@@ -60,6 +60,10 @@ public sealed class OperationsController(MicroMaxDbContext db, WarehouseOperatio
     public Task<IActionResult> WriteOffAsync([FromBody] WriteOffRequest request) =>
         RunOperationAsync(() => service.WriteOffAsync(request));
 
+    [HttpPost("adjust")]
+    public Task<IActionResult> AdjustAsync([FromBody] AdjustRequest request) =>
+        RunOperationAsync(() => service.AdjustAsync(request));
+
     private static async Task<IActionResult> RunOperationAsync(Func<Task<WarehouseOperation>> action)
     {
         try

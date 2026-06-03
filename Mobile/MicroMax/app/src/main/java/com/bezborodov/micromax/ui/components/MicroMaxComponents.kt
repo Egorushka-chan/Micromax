@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -71,6 +72,7 @@ enum class HomeMenuIcon {
     Receive,
     WriteOff,
     Move,
+    Adjust,
     Cell
 }
 
@@ -392,6 +394,7 @@ fun MenuLeadingIcon(icon: HomeMenuIcon) {
         HomeMenuIcon.Receive -> Color(0xFF5B9CEB)
         HomeMenuIcon.WriteOff -> Color(0xFFE95564)
         HomeMenuIcon.Move -> Color(0xFFE8A83A)
+        HomeMenuIcon.Adjust -> Color(0xFF5FC8B4)
         HomeMenuIcon.Cell -> Color(0xFF57B894)
         else -> AccentDark
     }
@@ -404,6 +407,7 @@ fun MenuLeadingIcon(icon: HomeMenuIcon) {
         HomeMenuIcon.Receive -> Icons.Outlined.Inventory2
         HomeMenuIcon.WriteOff -> Icons.Outlined.WarningAmber
         HomeMenuIcon.Move -> Icons.Outlined.SwapHoriz
+        HomeMenuIcon.Adjust -> Icons.Outlined.Tune
         HomeMenuIcon.Cell -> Icons.Outlined.Place
     }
 
