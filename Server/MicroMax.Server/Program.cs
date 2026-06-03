@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using MicroMax.Server.Api;
 using MicroMax.Server.Data;
 using MicroMax.Server.Services;
 using MicroMax.Server.Services.Assistant.Configuration;
@@ -10,10 +9,22 @@ using MicroMax.Server.Services.Assistant.Providers;
 using MicroMax.Server.Services.Assistant.Recovery;
 using MicroMax.Server.Services.Assistant.Registry;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorPages();
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "MicroMax API",
+        Version = "v1",
+        Description = "REST API информационной системы управления микроскладом."
+    });
+});
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
@@ -59,12 +70,16 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+
+app.UseSwagger();
+app.UseSwaggerUI();
+
 app.UseRouting();
 app.UseAuthorization();
 
 app.MapStaticAssets();
 app.MapRazorPages()
    .WithStaticAssets();
-app.MapMicroMaxApi();
+app.MapControllers();
 
 app.Run();
