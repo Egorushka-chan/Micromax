@@ -15,12 +15,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.bezborodov.micromax.data.MicroMaxApiClient
-import com.bezborodov.micromax.ui.assistant.AiAssistantOverlay
 import com.bezborodov.micromax.ui.assistant.AiAssistantNavigationTarget
+import com.bezborodov.micromax.ui.assistant.AiAssistantOverlay
 import com.bezborodov.micromax.ui.assistant.AiAssistantViewModel
 import com.bezborodov.micromax.ui.assistant.AiAssistantViewModelFactory
 import com.bezborodov.micromax.ui.cells.CellsScreen
@@ -35,6 +38,9 @@ import com.bezborodov.micromax.ui.items.ItemsStartDestination
 import com.bezborodov.micromax.ui.operations.OperationType
 import com.bezborodov.micromax.ui.operations.OperationsScreen
 import com.bezborodov.micromax.ui.theme.MicroMaxTheme
+import kotlinx.coroutines.delay
+
+private const val PollingIntervalMs = 15_000L
 
 @Composable
 fun HomeScreen(
@@ -42,6 +48,7 @@ fun HomeScreen(
     viewModel: WarehouseViewModel = viewModel(factory = WarehouseViewModelFactory(apiClient)),
     assistantViewModel: AiAssistantViewModel = viewModel(factory = AiAssistantViewModelFactory(apiClient))
 ) {
+    val lifecycleOwner = LocalLifecycleOwner.current
     var selectedTab by remember { mutableStateOf(BottomTab.Home) }
     var itemsStartDestination by remember { mutableStateOf(ItemsStartDestination.List) }
     var pendingOperationType by remember { mutableStateOf<OperationType?>(null) }
@@ -51,6 +58,16 @@ fun HomeScreen(
         state.snapshot.cells.isNotEmpty() ||
         state.snapshot.stocks.isNotEmpty() ||
         state.snapshot.operations.isNotEmpty()
+
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.refreshByPolling()
+            while (true) {
+                delay(PollingIntervalMs)
+                viewModel.refreshByPolling()
+            }
+        }
+    }
 
     LaunchedEffect(assistantState.lastResult) {
         val result = assistantState.lastResult ?: return@LaunchedEffect
@@ -64,7 +81,7 @@ fun HomeScreen(
             null -> Unit
         }
         if (result.success) {
-            viewModel.loadData()
+            viewModel.refreshByPolling()
         }
     }
 
@@ -100,13 +117,12 @@ fun HomeScreen(
                     state.isLoading && !hasLoadedData -> LoadingState()
                     state.message != null && !hasLoadedData -> FirstLoadErrorState(
                         message = state.message,
-                        onRefresh = { viewModel.loadData(showMessage = true) }
+                        onRefresh = viewModel::retryInitialLoad
                     )
 
                     else -> when (selectedTab) {
                         BottomTab.Home -> HomeDashboardScreen(
                             state = state,
-                            onRefresh = { viewModel.loadData(showMessage = true) },
                             onOpenItems = {
                                 itemsStartDestination = ItemsStartDestination.List
                                 selectedTab = BottomTab.Items
@@ -139,7 +155,6 @@ fun HomeScreen(
                         BottomTab.Assistant -> {
                             HomeDashboardScreen(
                                 state = state,
-                                onRefresh = { viewModel.loadData(showMessage = true) },
                                 onOpenItems = {
                                     itemsStartDestination = ItemsStartDestination.List
                                     selectedTab = BottomTab.Items
@@ -169,7 +184,7 @@ fun HomeScreen(
 
                         BottomTab.Settings -> SettingsScreen(
                             state = state,
-                            onRefresh = { viewModel.loadData(showMessage = true) }
+                            onRefresh = viewModel::refreshManually
                         )
                     }
                 }

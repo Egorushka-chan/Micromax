@@ -19,7 +19,6 @@ import com.bezborodov.micromax.ui.operations.OperationType
 @Composable
 fun HomeDashboardScreen(
     state: HomeUiState,
-    onRefresh: () -> Unit,
     onOpenItems: () -> Unit,
     onOpenAddItem: () -> Unit,
     onOpenCells: () -> Unit,
@@ -57,11 +56,19 @@ fun HomeDashboardScreen(
         item {
             SectionCard(title = "Товары") {
                 ActionMenuRow(
-                    item = HomeMenuItem("Добавить товар", "Завести новую номенклатуру", HomeMenuIcon.AddItem),
+                    item = HomeMenuItem(
+                        "Добавить товар",
+                        "Завести новую номенклатуру",
+                        HomeMenuIcon.AddItem
+                    ),
                     onClick = onOpenAddItem
                 )
                 ActionMenuRow(
-                    item = HomeMenuItem("Просмотр ячеек", "Содержимое мест хранения", HomeMenuIcon.Cell),
+                    item = HomeMenuItem(
+                        "Просмотр ячеек",
+                        "Содержимое мест хранения",
+                        HomeMenuIcon.Cell
+                    ),
                     onClick = onOpenCells
                 )
             }
@@ -70,19 +77,35 @@ fun HomeDashboardScreen(
         item {
             SectionCard(title = "Транзакции") {
                 ActionMenuRow(
-                    item = HomeMenuItem("Приход", "Принять товар в ячейку", HomeMenuIcon.Receive),
+                    item = HomeMenuItem(
+                        "Приход",
+                        "Принять товар в ячейку",
+                        HomeMenuIcon.Receive
+                    ),
                     onClick = { onOpenOperation(OperationType.Receive) }
                 )
                 ActionMenuRow(
-                    item = HomeMenuItem("Расход", "Списать товар из ячейки", HomeMenuIcon.WriteOff),
+                    item = HomeMenuItem(
+                        "Расход",
+                        "Списать товар из ячейки",
+                        HomeMenuIcon.WriteOff
+                    ),
                     onClick = { onOpenOperation(OperationType.WriteOff) }
                 )
                 ActionMenuRow(
-                    item = HomeMenuItem("Перемещение", "Перенести товар между ячейками", HomeMenuIcon.Move),
+                    item = HomeMenuItem(
+                        "Перемещение",
+                        "Перенести товар между ячейками",
+                        HomeMenuIcon.Move
+                    ),
                     onClick = { onOpenOperation(OperationType.Move) }
                 )
                 ActionMenuRow(
-                    item = HomeMenuItem("Корректировка", "Установить точный остаток в ячейке", HomeMenuIcon.Adjust),
+                    item = HomeMenuItem(
+                        "Корректировка",
+                        "Установить точный остаток в ячейке",
+                        HomeMenuIcon.Adjust
+                    ),
                     onClick = { onOpenOperation(OperationType.Adjust) }
                 )
             }
@@ -91,12 +114,12 @@ fun HomeDashboardScreen(
         item {
             SectionCard(title = "Помощник") {
                 ActionMenuRow(
-                    item = HomeMenuItem("Командный помощник", "Поиск и операции через команды", HomeMenuIcon.Team),
+                    item = HomeMenuItem(
+                        "Командный помощник",
+                        "Поиск и операции через команды",
+                        HomeMenuIcon.Team
+                    ),
                     onClick = onOpenAssistant
-                )
-                ActionMenuRow(
-                    item = HomeMenuItem("Обновить данные", "Загрузить актуальные остатки с сервера", HomeMenuIcon.Inventory),
-                    onClick = onRefresh
                 )
             }
         }

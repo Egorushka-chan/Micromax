@@ -13,38 +13,36 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private enum class RefreshTrigger {
+    Initial,
+    Manual,
+    Polling
+}
+
 class WarehouseViewModel(
     private val apiClient: MicroMaxApiClient = MicroMaxApiClient()
 ) : ViewModel() {
+    // Защищаемся от параллельных загрузок снимка и от устаревших ответов.
+    private var isSnapshotRefreshInProgress = false
+    private var latestRequestId = 0L
+
     var uiState by mutableStateOf(HomeUiState(isLoading = true))
         private set
 
     init {
-        loadData()
+        retryInitialLoad()
     }
 
-    fun loadData(showMessage: Boolean = false) {
-        viewModelScope.launch {
-            uiState = uiState.copy(isLoading = true, message = null)
-            val result = runCatching {
-                withContext(Dispatchers.IO) { apiClient.loadSnapshot() }
-            }
-            uiState = result.fold(
-                onSuccess = {
-                    uiState.copy(
-                        snapshot = it,
-                        isLoading = false,
-                        message = if (showMessage) "Данные обновлены" else null
-                    )
-                },
-                onFailure = {
-                    uiState.copy(
-                        isLoading = false,
-                        message = it.message ?: "Не удалось загрузить данные"
-                    )
-                }
-            )
-        }
+    fun retryInitialLoad() {
+        refreshSnapshot(RefreshTrigger.Initial)
+    }
+
+    fun refreshManually() {
+        refreshSnapshot(RefreshTrigger.Manual)
+    }
+
+    fun refreshByPolling() {
+        refreshSnapshot(RefreshTrigger.Polling)
     }
 
     fun receive(productId: Int, targetCellId: Int, quantity: Double, comment: String? = null) {
@@ -154,16 +152,63 @@ class WarehouseViewModel(
         }
     }
 
+    private fun refreshSnapshot(trigger: RefreshTrigger) {
+        if (isSnapshotRefreshInProgress || uiState.isOperationSubmitting) {
+            return
+        }
+
+        isSnapshotRefreshInProgress = true
+        val requestId = nextRequestId()
+        viewModelScope.launch {
+            uiState = uiState.copy(isLoading = true, message = null)
+            val result = runCatching { loadSnapshot() }
+
+            isSnapshotRefreshInProgress = false
+            if (requestId != latestRequestId) {
+                return@launch
+            }
+
+            uiState = result.fold(
+                onSuccess = { snapshot ->
+                    uiState.copy(
+                        snapshot = snapshot,
+                        isLoading = false,
+                        message = if (trigger == RefreshTrigger.Manual) "Данные обновлены" else null
+                    )
+                },
+                onFailure = { error ->
+                    when (trigger) {
+                        RefreshTrigger.Polling -> uiState.copy(isLoading = false, message = null)
+                        else -> uiState.copy(
+                            isLoading = false,
+                            message = error.message ?: "Не удалось загрузить данные"
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     private fun runChangingOperation(
         successMessage: String,
         clearPendingCommand: Boolean = false,
         action: () -> WarehouseSnapshot
     ) {
+        if (uiState.isOperationSubmitting) {
+            return
+        }
+
+        val requestId = nextRequestId()
         viewModelScope.launch {
             uiState = uiState.copy(isOperationSubmitting = true, message = null)
             val result = runCatching {
                 withContext(Dispatchers.IO) { action() }
             }
+
+            if (requestId != latestRequestId) {
+                return@launch
+            }
+
             uiState = result.fold(
                 onSuccess = {
                     uiState.copy(
@@ -181,6 +226,15 @@ class WarehouseViewModel(
                 }
             )
         }
+    }
+
+    private fun nextRequestId(): Long {
+        latestRequestId += 1
+        return latestRequestId
+    }
+
+    private suspend fun loadSnapshot(): WarehouseSnapshot {
+        return withContext(Dispatchers.IO) { apiClient.loadSnapshot() }
     }
 }
 
