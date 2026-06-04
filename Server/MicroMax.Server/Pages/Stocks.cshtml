@@ -1,0 +1,122 @@
+@page
+@model MicroMax.Server.Pages.StocksModel
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Остатки";
+}
+
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">Контроль состояния склада</p>
+        <h1>Остатки</h1>
+        <p>
+            Страница используется только для просмотра и диагностики. Изменение количества выполняется
+            исключительно через складские операции, чтобы не разрушать журнал действий.
+        </p>
+    </div>
+    <div class="page-heading__actions">
+        <a class="button-link" asp-page="/Operations">Перейти к операциям</a>
+    </div>
+</section>
+
+<partial name="_AdminAlerts" />
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Фильтры остатков</h2>
+            <p class="panel__intro">Выберите складскую область или номенклатуру для диагностики текущего состояния.</p>
+        </div>
+    </div>
+    <form method="get" class="filter-form filter-form--wide">
+        <label>Склад
+            <select asp-for="WarehouseId" asp-items="@(new SelectList(Model.Warehouses, "Id", "Name"))">
+                <option value="">Все доступные склады</option>
+            </select>
+        </label>
+        <label>Зона хранения
+            <select asp-for="ZoneId" asp-items="@(new SelectList(Model.Zones, "Id", "DisplayName"))">
+                <option value="">Все зоны</option>
+            </select>
+        </label>
+        <label>Ячейка хранения
+            <select asp-for="CellId" asp-items="@(new SelectList(Model.Cells, "Id", "DisplayName"))">
+                <option value="">Все ячейки</option>
+            </select>
+        </label>
+        <label>Номенклатура
+            <select asp-for="ProductId" asp-items="@(new SelectList(Model.Products, "Id", "DisplayName"))">
+                <option value="">Все позиции</option>
+            </select>
+        </label>
+        <label>Поиск
+            <input asp-for="Search" placeholder="Товар, SKU, зона или ячейка" />
+        </label>
+        <div class="row-actions">
+            <button type="submit">Применить</button>
+            <a class="button-link button-ghost" asp-page="/Stocks">Сбросить</a>
+        </div>
+    </form>
+</section>
+
+<section class="notice">
+    В таблице остатки сгруппированы по связке «товар - ячейка». Прямое редактирование количества в админ-панели не предусмотрено.
+</section>
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Текущие остатки</h2>
+            <p class="panel__intro">Для каждого товара показывается текущий остаток в ячейке и суммарный остаток по управляемым складам.</p>
+        </div>
+    </div>
+
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="empty-state">По выбранным фильтрам остатков не найдено.</div>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                <tr>
+                    <th>Склад</th>
+                    <th>Зона / ячейка</th>
+                    <th>Номенклатура</th>
+                    <th>Количество</th>
+                    <th>Суммарно по товару</th>
+                    <th>Минимум</th>
+                    <th>Статус</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>@row.WarehouseName</td>
+                        <td>@row.ZoneCode / @row.CellCode</td>
+                        <td>
+                            <a asp-page="/Stocks" asp-route-productId="@row.ProductId">@row.ProductName</a>
+                            <div class="subtle">@row.Sku</div>
+                        </td>
+                        <td>@row.Quantity @row.Unit</td>
+                        <td>@row.TotalProductQuantity @row.Unit</td>
+                        <td>@row.MinQuantity @row.Unit</td>
+                        <td>
+                            @if (row.IsLowStock)
+                            {
+                                <span class="badge badge--warning">Низкий остаток</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--success">В норме</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

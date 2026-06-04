@@ -1,0 +1,118 @@
+@page
+@model MicroMax.Server.Pages.WarehousesModel
+@{
+    ViewData["Title"] = "Склады";
+}
+
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">Складская структура</p>
+        <h1>Склады</h1>
+        <p>
+            Раздел управления складами в рамках MVP. Физическое удаление не используется,
+            чтобы не нарушать историю операций и связность складской структуры.
+        </p>
+    </div>
+    <div class="page-heading__actions">
+        <a class="button-link button-secondary" asp-page="/Zones">Перейти к зонам</a>
+        <a class="button-link button-ghost" asp-page="/Users">Права по складам</a>
+    </div>
+</section>
+
+<partial name="_AdminAlerts" />
+
+<div class="grid grid--two">
+    <section class="panel">
+        <div class="panel__header">
+            <div>
+                <h2>Новый склад</h2>
+                <p class="panel__intro">Создание нового склада и автоматическое назначение текущего администратора.</p>
+            </div>
+        </div>
+        <form method="post" asp-page-handler="Create" class="stack">
+            <label>Название склада
+                <input asp-for="CreateForm.Name" placeholder="Например, Основной микросклад" />
+            </label>
+            <label>Адрес или описание
+                <input asp-for="CreateForm.Address" placeholder="Краткое описание склада" />
+            </label>
+            <button type="submit">Добавить склад</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div>
+                <h2>Редактирование</h2>
+                <p class="panel__intro">Изменяются только наименование и описание склада.</p>
+            </div>
+        </div>
+
+        @if (Model.SelectedWarehouse is null)
+        {
+            <div class="empty-state">Выберите склад в таблице ниже, чтобы открыть форму редактирования.</div>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Edit" class="stack">
+                <input asp-for="EditForm.Id" type="hidden" />
+                <label>Название склада
+                    <input asp-for="EditForm.Name" />
+                </label>
+                <label>Адрес или описание
+                    <input asp-for="EditForm.Address" />
+                </label>
+                <button type="submit">Сохранить изменения</button>
+            </form>
+        }
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Список складов</h2>
+            <p class="panel__intro">Отображаются склады, где текущий пользователь имеет роль ADMIN.</p>
+        </div>
+    </div>
+
+    @if (Model.Warehouses.Count == 0)
+    {
+        <div class="empty-state">Доступных складов пока нет.</div>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                <tr>
+                    <th>Склад</th>
+                    <th>Описание</th>
+                    <th>Зоны</th>
+                    <th>Ячейки</th>
+                    <th>Пользователи</th>
+                    <th>Действия</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Warehouses)
+                {
+                    <tr>
+                        <td>@row.Name</td>
+                        <td>@(string.IsNullOrWhiteSpace(row.Address) ? "—" : row.Address)</td>
+                        <td>@row.ZoneCount</td>
+                        <td>@row.CellCount</td>
+                        <td>@row.UserCount</td>
+                        <td>
+                            <div class="row-actions">
+                                <a class="button-link button-secondary" asp-page="/Warehouses" asp-route-editId="@row.Id">Изменить</a>
+                                <a class="button-link button-ghost" asp-page="/Zones" asp-route-warehouseId="@row.Id">Зоны</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

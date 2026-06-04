@@ -1,0 +1,147 @@
+@page
+@model MicroMax.Server.Pages.ZonesModel
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Зоны";
+}
+
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">Складская структура</p>
+        <h1>Зоны хранения</h1>
+        <p>
+            Зона принадлежит конкретному складу. Для MVP доступны создание и редактирование кода и названия
+            без физического удаления записей.
+        </p>
+    </div>
+    <div class="page-heading__actions">
+        <a class="button-link button-secondary" asp-page="/Cells" asp-route-warehouseId="@Model.WarehouseId">Открыть ячейки</a>
+    </div>
+</section>
+
+<partial name="_AdminAlerts" />
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Фильтр по складу</h2>
+            <p class="panel__intro">Помогает работать со структурой выбранного склада.</p>
+        </div>
+    </div>
+    <form method="get" class="filter-form">
+        <label>Склад
+            <select asp-for="WarehouseId" asp-items="@(new SelectList(Model.Warehouses, "Id", "Name"))">
+                <option value="">Все доступные склады</option>
+            </select>
+        </label>
+        <div class="row-actions">
+            <button type="submit">Применить</button>
+            <a class="button-link button-ghost" asp-page="/Zones">Сбросить</a>
+        </div>
+    </form>
+</section>
+
+<div class="grid grid--two">
+    <section class="panel">
+        <div class="panel__header">
+            <div>
+                <h2>Новая зона</h2>
+                <p class="panel__intro">Создание новой зоны хранения внутри выбранного склада.</p>
+            </div>
+        </div>
+        <form method="post" asp-page-handler="Create" class="stack">
+            <label>Склад
+                <select asp-for="CreateForm.WarehouseId" asp-items="@(new SelectList(Model.Warehouses, "Id", "Name"))"></select>
+            </label>
+            <label>Код зоны
+                <input asp-for="CreateForm.Code" placeholder="Например, A" />
+            </label>
+            <label>Название зоны
+                <input asp-for="CreateForm.Name" placeholder="Например, Стеллаж A" />
+            </label>
+            <button type="submit">Добавить зону</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div>
+                <h2>Редактирование</h2>
+                <p class="panel__intro">Склад зоны остаётся неизменным, редактируются только код и название.</p>
+            </div>
+        </div>
+        @if (Model.SelectedZone is null)
+        {
+            <div class="empty-state">Выберите зону в таблице, чтобы открыть форму редактирования.</div>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Edit" class="stack">
+                <input asp-for="EditForm.Id" type="hidden" />
+                <label>Склад
+                    <input value="@Model.SelectedZone.WarehouseName" disabled />
+                </label>
+                <label>Код зоны
+                    <input asp-for="EditForm.Code" />
+                </label>
+                <label>Название зоны
+                    <input asp-for="EditForm.Name" />
+                </label>
+                <button type="submit">Сохранить изменения</button>
+            </form>
+        }
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Список зон</h2>
+            <p class="panel__intro">Отображаются зоны в складах, доступных текущему администратору.</p>
+        </div>
+    </div>
+
+    @if (Model.Zones.Count == 0)
+    {
+        <div class="empty-state">Зоны хранения пока не добавлены.</div>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                <tr>
+                    <th>Склад</th>
+                    <th>Код</th>
+                    <th>Название</th>
+                    <th>Ячейки</th>
+                    <th>Действия</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Zones)
+                {
+                    <tr>
+                        <td>@row.WarehouseName</td>
+                        <td>@row.Code</td>
+                        <td>@row.Name</td>
+                        <td>@row.CellCount</td>
+                        <td>
+                            <div class="row-actions">
+                                <a class="button-link button-secondary"
+                                   asp-page="/Zones"
+                                   asp-route-warehouseId="@(Model.WarehouseId ?? row.WarehouseId)"
+                                   asp-route-editId="@row.Id">Изменить</a>
+                                <a class="button-link button-ghost"
+                                   asp-page="/Cells"
+                                   asp-route-warehouseId="@row.WarehouseId"
+                                   asp-route-zoneId="@row.Id">Ячейки</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

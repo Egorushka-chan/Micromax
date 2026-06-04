@@ -1,0 +1,152 @@
+@page
+@model MicroMax.Server.Pages.CellsModel
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Ячейки";
+}
+
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">Адресное хранение</p>
+        <h1>Ячейки хранения</h1>
+        <p>
+            Раздел показывает адресную структуру микросклада. Здесь доступны фильтрация, создание и редактирование
+            ячеек без удаления исторически значимых записей.
+        </p>
+    </div>
+    <div class="page-heading__actions">
+        <a class="button-link button-secondary" asp-page="/Stocks" asp-route-cellId="@Model.EditId">Содержимое ячейки</a>
+    </div>
+</section>
+
+<partial name="_AdminAlerts" />
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Фильтры</h2>
+            <p class="panel__intro">Выберите склад и зону, чтобы работать с нужной частью структуры.</p>
+        </div>
+    </div>
+    <form method="get" class="filter-form">
+        <label>Склад
+            <select asp-for="WarehouseId" asp-items="@(new SelectList(Model.Warehouses, "Id", "Name"))">
+                <option value="">Все доступные склады</option>
+            </select>
+        </label>
+        <label>Зона хранения
+            <select asp-for="ZoneId" asp-items="@(new SelectList(Model.Zones, "Id", "DisplayName"))">
+                <option value="">Все доступные зоны</option>
+            </select>
+        </label>
+        <div class="row-actions">
+            <button type="submit">Применить</button>
+            <a class="button-link button-ghost" asp-page="/Cells">Сбросить</a>
+        </div>
+    </form>
+</section>
+
+<div class="grid grid--two">
+    <section class="panel">
+        <div class="panel__header">
+            <div>
+                <h2>Новая ячейка</h2>
+                <p class="panel__intro">Для создания ячейки выберите зону хранения.</p>
+            </div>
+        </div>
+        <form method="post" asp-page-handler="Create" class="stack">
+            <label>Зона хранения
+                <select asp-for="CreateForm.ZoneId" asp-items="@(new SelectList(Model.Zones, "Id", "DisplayName"))"></select>
+            </label>
+            <label>Код ячейки
+                <input asp-for="CreateForm.Code" placeholder="Например, A-01" />
+            </label>
+            <label>Название ячейки
+                <input asp-for="CreateForm.Name" placeholder="Например, Верхняя секция" />
+            </label>
+            <button type="submit">Добавить ячейку</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div>
+                <h2>Редактирование</h2>
+                <p class="panel__intro">При необходимости код и название ячейки можно уточнить без смены зоны.</p>
+            </div>
+        </div>
+        @if (Model.SelectedCell is null)
+        {
+            <div class="empty-state">Выберите ячейку в таблице, чтобы открыть форму редактирования.</div>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Edit" class="stack">
+                <input asp-for="EditForm.Id" type="hidden" />
+                <label>Расположение
+                    <input value="@($"{Model.SelectedCell.WarehouseName} / {Model.SelectedCell.ZoneCode}")" disabled />
+                </label>
+                <label>Код ячейки
+                    <input asp-for="EditForm.Code" />
+                </label>
+                <label>Название ячейки
+                    <input asp-for="EditForm.Name" />
+                </label>
+                <button type="submit">Сохранить изменения</button>
+            </form>
+        }
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Список ячеек</h2>
+            <p class="panel__intro">В таблице показано число активных товарных позиций в каждой ячейке.</p>
+        </div>
+    </div>
+
+    @if (Model.Cells.Count == 0)
+    {
+        <div class="empty-state">Ячейки по выбранным фильтрам не найдены.</div>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                <tr>
+                    <th>Склад</th>
+                    <th>Зона</th>
+                    <th>Код</th>
+                    <th>Название</th>
+                    <th>Активные позиции</th>
+                    <th>Действия</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Cells)
+                {
+                    <tr>
+                        <td>@row.WarehouseName</td>
+                        <td>@row.ZoneCode</td>
+                        <td>@row.Code</td>
+                        <td>@row.Name</td>
+                        <td>@row.ActiveStockCount</td>
+                        <td>
+                            <div class="row-actions">
+                                <a class="button-link button-secondary"
+                                   asp-page="/Cells"
+                                   asp-route-warehouseId="@(Model.WarehouseId ?? row.WarehouseId)"
+                                   asp-route-zoneId="@(Model.ZoneId ?? row.ZoneId)"
+                                   asp-route-editId="@row.Id">Изменить</a>
+                                <a class="button-link button-ghost" asp-page="/Stocks" asp-route-cellId="@row.Id">Содержимое</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

@@ -1,48 +1,252 @@
-﻿/* Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
-for details on configuring this project to bundle and minify static web assets. */
-
-a.navbar-brand {
-  white-space: normal;
-  text-align: center;
-  word-break: break-all;
+.app-shell {
+  min-height: calc(100vh - 72px);
+  display: flex;
+  flex-direction: column;
 }
 
-a {
-  color: #0077cc;
+.app-header,
+.auth-header {
+  background: linear-gradient(135deg, #133f37 0%, #184f45 45%, #1e6256 100%);
+  color: #f8fffd;
+  box-shadow: 0 10px 32px rgba(10, 33, 30, 0.14);
 }
 
-.btn-primary {
-  color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
-.nav-pills .nav-link.active, .nav-pills .show > .nav-link {
-  color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+.app-header__inner,
+.auth-header {
+  width: min(1280px, calc(100% - 32px));
+  margin: 0 auto;
 }
 
-.border-top {
-  border-top: 1px solid #e5e5e5;
-}
-.border-bottom {
-  border-bottom: 1px solid #e5e5e5;
-}
-
-.box-shadow {
-  box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05);
+.app-header__inner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 20px;
+  align-items: center;
+  padding: 18px 0;
 }
 
-button.accept-policy {
-  font-size: 1rem;
-  line-height: inherit;
+.app-mobile-menu {
+  display: none;
 }
 
-.footer {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  white-space: nowrap;
-  line-height: 60px;
+.app-mobile-menu__toggle {
+  list-style: none;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.app-mobile-menu__toggle::-webkit-details-marker {
+  display: none;
+}
+
+.app-mobile-menu[open] .app-mobile-menu__toggle {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.app-mobile-menu__panel {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(10, 33, 30, 0.2);
+  backdrop-filter: blur(8px);
+}
+
+.auth-header {
+  padding: 20px 0;
+}
+
+.app-brand {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-brand--compact {
+  padding: 4px 0;
+}
+
+.app-brand__eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(233, 245, 241, 0.72);
+}
+
+.app-brand__name {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.app-nav__link {
+  padding: 9px 0;
+  background: transparent;
+  color: rgba(248, 255, 253, 0.88);
+  text-decoration: none;
+  font-size: 14px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.app-nav__link:hover {
+  background: transparent;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.app-nav__link--active {
+  background: transparent;
+  color: #fff3cf;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
+
+.admin-session {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.admin-session__name {
+  font-size: 14px;
+  color: rgba(248, 255, 253, 0.78);
+}
+
+.admin-session__form {
+  margin: 0;
+}
+
+.admin-session__button,
+.admin-session__link {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #133f37;
+  padding: 9px 14px;
+  text-decoration: none;
+  box-shadow: 0 6px 16px rgba(9, 32, 28, 0.12);
+}
+
+.admin-session__button:hover,
+.admin-session__link:hover {
+  background: #f2fbf8;
+  color: #0f342d;
+  box-shadow: 0 10px 20px rgba(9, 32, 28, 0.18);
+}
+
+.app-main {
+  width: min(1280px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 40px;
+  flex: 1 0 auto;
+}
+
+.app-footer {
+  border-top: 1px solid #d8e3df;
+  background: #fbfcfc;
+  color: #52615c;
+}
+
+.app-footer__inner {
+  width: min(1280px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 18px 0 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+@media (max-width: 1100px) {
+  .app-header__inner {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .app-nav {
+    justify-content: flex-start;
+  }
+
+  .admin-session {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-header {
+    position: static;
+  }
+
+  .app-header__inner {
+    grid-template-columns: 1fr auto;
+    align-items: start;
+    gap: 14px;
+    padding: 16px 0;
+  }
+
+  .app-brand {
+    max-width: 100%;
+  }
+
+  .app-brand__name {
+    font-size: 18px;
+  }
+
+  .app-nav--desktop,
+  .admin-session--desktop {
+    display: none;
+  }
+
+  .app-mobile-menu {
+    display: block;
+    width: 100%;
+    grid-column: 1 / -1;
+  }
+
+  .app-mobile-menu__panel {
+    display: grid;
+    gap: 16px;
+  }
+
+  .app-nav--mobile {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .app-nav--mobile .app-nav__link {
+    padding: 2px 0;
+    font-size: 16px;
+  }
+
+  .admin-session--mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
 }

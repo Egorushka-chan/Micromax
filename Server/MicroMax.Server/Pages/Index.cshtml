@@ -1,144 +1,156 @@
 @page
-@using MicroMax.Server.Models
-@using Microsoft.AspNetCore.Mvc.Rendering
 @model MicroMax.Server.Pages.IndexModel
 @{
-    ViewData["Title"] = "MicroMax";
+    ViewData["Title"] = "Главная";
 }
 
-<section class="hero">
-    <div>
-        <p class="eyebrow">Админ-панель микросклада</p>
-        <h1>MicroMax</h1>
-        <p>Складская структура, номенклатура, остатки, операции и журнал действий для демонстрации дипломного MVP.</p>
+<section class="page-hero">
+    <p class="page-eyebrow">MicroMax MVP</p>
+    <h1>Главная панель администратора</h1>
+    <p>
+        Dashboard показывает текущее состояние управляемых складов: структуру микросклада,
+        активные остатки и последние изменения по складским операциям.
+    </p>
+</section>
+
+<partial name="_AdminAlerts" />
+
+<section class="stat-grid">
+    <article class="stat-card">
+        <p class="stat-card__label">Склады</p>
+        <p class="stat-card__value">@Model.Summary.WarehouseCount</p>
+        <p class="stat-card__note">Склады, где текущий пользователь имеет роль ADMIN.</p>
+    </article>
+    <article class="stat-card">
+        <p class="stat-card__label">Зоны хранения</p>
+        <p class="stat-card__value">@Model.Summary.ZoneCount</p>
+        <p class="stat-card__note">Логические зоны внутри управляемых складов.</p>
+    </article>
+    <article class="stat-card">
+        <p class="stat-card__label">Ячейки хранения</p>
+        <p class="stat-card__value">@Model.Summary.CellCount</p>
+        <p class="stat-card__note">Адресное хранение и доступные места размещения.</p>
+    </article>
+    <article class="stat-card">
+        <p class="stat-card__label">Номенклатура</p>
+        <p class="stat-card__value">@Model.Summary.ProductCount</p>
+        <p class="stat-card__note">Глобальный каталог позиций MicroMax.</p>
+    </article>
+    <article class="stat-card">
+        <p class="stat-card__label">Позиции с остатком</p>
+        <p class="stat-card__value">@Model.Summary.StockPositionCount</p>
+        <p class="stat-card__note">Активные строки остатков по ячейкам хранения.</p>
+    </article>
+</section>
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Быстрые действия</h2>
+            <p class="panel__intro">Переходы к ключевым разделам админ-панели.</p>
+        </div>
+        <div class="row-actions">
+            <a class="button-link" asp-page="/Products">Добавить номенклатуру</a>
+            <a class="button-link button-secondary" asp-page="/Cells">Добавить ячейку</a>
+            <a class="button-link button-ghost" asp-page="/Operations">Выполнить операцию</a>
+        </div>
     </div>
 </section>
 
-@if (TempData["Message"] is string message)
-{
-    <div class="alert alert-success">@message</div>
-}
-@if (TempData["Error"] is string error)
-{
-    <div class="alert alert-danger">@error</div>
-}
-
-<div class="grid two">
+<div class="grid grid--two">
     <section class="panel">
-        <h2>Складская операция</h2>
-        <form method="post" asp-page-handler="RunOperation" class="form-grid">
-            <label>Тип операции
-                <select asp-for="OperationForm.Type">
-                    <option value="@WarehouseOperationType.Receive">Приёмка</option>
-                    <option value="@WarehouseOperationType.Move">Перемещение</option>
-                    <option value="@WarehouseOperationType.WriteOff">Списание</option>
-                    <option value="@WarehouseOperationType.Adjust">Корректировка</option>
-                </select>
-            </label>
-            <label>Номенклатура
-                <select asp-for="OperationForm.ProductId" asp-items="@(new SelectList(Model.Products, "Id", "Name"))"></select>
-            </label>
-            <label>Исходная ячейка
-                <select asp-for="OperationForm.SourceCellId" asp-items="@(new SelectList(Model.Cells, "Id", "Code"))">
-                    <option value="">Не требуется</option>
-                </select>
-            </label>
-            <label>Целевая ячейка
-                <select asp-for="OperationForm.TargetCellId" asp-items="@(new SelectList(Model.Cells, "Id", "Code"))">
-                    <option value="">Не требуется</option>
-                </select>
-            </label>
-            <label>Пользователь
-                <select asp-for="OperationForm.UserId" asp-items="@(new SelectList(Model.Users, "Id", "DisplayName"))">
-                    <option value="">Не указан</option>
-                </select>
-            </label>
-            <label>Количество
-                <input asp-for="OperationForm.Quantity" type="number" step="0.001" min="0.001" />
-            </label>
-            <label class="wide">Комментарий
-                <input asp-for="OperationForm.Comment" />
-            </label>
-            <button type="submit">Выполнить операцию</button>
-        </form>
+        <div class="panel__header">
+            <div>
+                <h2>Последние операции</h2>
+                <p class="panel__intro">Последние 10 изменений по управляемым складам.</p>
+            </div>
+            <a class="button-link button-secondary" asp-page="/OperationLog">Открыть журнал</a>
+        </div>
+
+        @if (Model.RecentOperations.Count == 0)
+        {
+            <div class="empty-state">Операции пока не зафиксированы.</div>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Склад</th>
+                        <th>Операция</th>
+                        <th>Товар</th>
+                        <th>Ячейки</th>
+                        <th>Количество</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.RecentOperations)
+                    {
+                        <tr>
+                            <td>
+                                @row.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                <div class="subtle">@row.PerformedBy</div>
+                            </td>
+                            <td>@row.WarehouseName</td>
+                            <td>@row.Type</td>
+                            <td>
+                                @row.ProductName
+                                @if (!string.IsNullOrWhiteSpace(row.Comment))
+                                {
+                                    <div class="subtle">@row.Comment</div>
+                                }
+                            </td>
+                            <td>@(row.SourceCellCode ?? "—") → @(row.TargetCellCode ?? "—")</td>
+                            <td>@row.Quantity</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
     </section>
 
     <section class="panel">
-        <h2>Текущие остатки</h2>
-        <table>
-            <thead><tr><th>Номенклатура</th><th>Ячейка</th><th>Кол-во</th></tr></thead>
-            <tbody>
-            @foreach (var row in Model.StockRows)
-            {
-                <tr><td>@row.ProductName<br><small>@row.Sku</small></td><td>@row.ZoneCode / @row.CellCode</td><td>@row.Quantity @row.Unit</td></tr>
-            }
-            </tbody>
-        </table>
+        <div class="panel__header">
+            <div>
+                <h2>Низкие остатки</h2>
+                <p class="panel__intro">Товары, по которым суммарный остаток не превышает минимальный уровень.</p>
+            </div>
+            <a class="button-link button-secondary" asp-page="/Stocks">Открыть остатки</a>
+        </div>
+
+        @if (Model.LowStockProducts.Count == 0)
+        {
+            <div class="empty-state">Товаров ниже минимального остатка сейчас нет.</div>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Номенклатура</th>
+                        <th>Фактический остаток</th>
+                        <th>Минимум</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.LowStockProducts)
+                    {
+                        <tr>
+                            <td>
+                                <a asp-page="/Stocks" asp-route-productId="@row.ProductId">@row.Name</a>
+                                <div class="subtle">@row.Sku</div>
+                            </td>
+                            <td><span class="badge badge--warning">@row.TotalQuantity @row.Unit</span></td>
+                            <td>@row.MinQuantity @row.Unit</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
     </section>
 </div>
-
-<section class="panel">
-    <h2>Справочники</h2>
-    <div class="grid three">
-        <form method="post" asp-page-handler="AddWarehouse" class="stack">
-            <h3>Склад</h3>
-            <input asp-for="WarehouseForm.Name" placeholder="Название склада" />
-            <input asp-for="WarehouseForm.Address" placeholder="Адрес / описание" />
-            <button type="submit">Добавить</button>
-        </form>
-        <form method="post" asp-page-handler="AddZone" class="stack">
-            <h3>Зона хранения</h3>
-            <select asp-for="ZoneForm.WarehouseId" asp-items="@(new SelectList(Model.Warehouses, "Id", "Name"))"></select>
-            <input asp-for="ZoneForm.Code" placeholder="Код зоны, например A" />
-            <input asp-for="ZoneForm.Name" placeholder="Название зоны" />
-            <button type="submit">Добавить</button>
-        </form>
-        <form method="post" asp-page-handler="AddCell" class="stack">
-            <h3>Ячейка</h3>
-            <select asp-for="CellForm.StorageZoneId" asp-items="@(new SelectList(Model.Zones, "Id", "Code"))"></select>
-            <input asp-for="CellForm.Code" placeholder="Код ячейки, например A-1" />
-            <input asp-for="CellForm.Name" placeholder="Название ячейки" />
-            <button type="submit">Добавить</button>
-        </form>
-        <form method="post" asp-page-handler="AddProduct" class="stack">
-            <h3>Номенклатура</h3>
-            <input asp-for="ProductForm.Sku" placeholder="Артикул" />
-            <input asp-for="ProductForm.Name" placeholder="Название" />
-            <input asp-for="ProductForm.Unit" placeholder="Ед. изм." />
-            <input asp-for="ProductForm.MinQuantity" type="number" step="0.001" placeholder="Минимальный остаток" />
-            <button type="submit">Добавить</button>
-        </form>
-        <form method="post" asp-page-handler="AddRole" class="stack">
-            <h3>Роль</h3>
-            <input asp-for="RoleForm.Name" placeholder="Название роли" />
-            <button type="submit">Добавить</button>
-        </form>
-        <form method="post" asp-page-handler="AddUser" class="stack">
-            <h3>Пользователь</h3>
-            <select asp-for="UserForm.UserRoleId" asp-items="@(new SelectList(Model.Roles, "Id", "Name"))"></select>
-            <input asp-for="UserForm.Login" placeholder="Логин" />
-            <input asp-for="UserForm.DisplayName" placeholder="Имя пользователя" />
-            <button type="submit">Добавить</button>
-        </form>
-    </div>
-</section>
-
-<section class="panel">
-    <h2>Журнал операций</h2>
-    <table>
-        <thead><tr><th>Дата</th><th>Тип</th><th>Номенклатура</th><th>Ячейки</th><th>Кол-во</th><th>Комментарий</th></tr></thead>
-        <tbody>
-        @foreach (var row in Model.OperationRows)
-        {
-            <tr>
-                <td>@row.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
-                <td>@row.Type</td>
-                <td>@row.ProductName</td>
-                <td>@row.SourceCell → @row.TargetCell</td>
-                <td>@row.Quantity</td>
-                <td>@row.Comment</td>
-            </tr>
-        }
-        </tbody>
-    </table>
-</section>

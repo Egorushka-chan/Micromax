@@ -1,0 +1,131 @@
+@page
+@model MicroMax.Server.Pages.OperationLogModel
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using MicroMax.Server.Models
+@{
+    ViewData["Title"] = "Журнал операций";
+}
+
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">Аудит действий</p>
+        <h1>Журнал операций</h1>
+        <p>
+            Журнал показывает, кто, когда и каким образом изменил остатки. Здесь собраны фильтры по складу,
+            пользователю, товару, ячейке, типу операции и периоду.
+        </p>
+    </div>
+    <div class="page-heading__actions">
+        <a class="button-link button-secondary" asp-page="/Operations">Новая операция</a>
+        <a class="button-link button-ghost" asp-page="/Stocks">Остатки</a>
+    </div>
+</section>
+
+<partial name="_AdminAlerts" />
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Фильтры журнала</h2>
+            <p class="panel__intro">По умолчанию показываются последние 200 записей по управляемым складам.</p>
+        </div>
+    </div>
+    <form method="get" class="filter-form filter-form--wide">
+        <label>Склад
+            <select asp-for="WarehouseId" asp-items="@(new SelectList(Model.Warehouses, "Id", "Name"))">
+                <option value="">Все доступные склады</option>
+            </select>
+        </label>
+        <label>Пользователь
+            <select asp-for="UserId" asp-items="@(new SelectList(Model.Users, "Id", "DisplayName"))">
+                <option value="">Все пользователи</option>
+            </select>
+        </label>
+        <label>Номенклатура
+            <select asp-for="ProductId" asp-items="@(new SelectList(Model.Products, "Id", "DisplayName"))">
+                <option value="">Все позиции</option>
+            </select>
+        </label>
+        <label>Ячейка
+            <select asp-for="CellId" asp-items="@(new SelectList(Model.Cells, "Id", "DisplayName"))">
+                <option value="">Все ячейки</option>
+            </select>
+        </label>
+        <label>Тип операции
+            <select asp-for="Type">
+                <option value="">Все типы</option>
+                <option value="@WarehouseOperationType.Receive">Приёмка</option>
+                <option value="@WarehouseOperationType.Move">Перемещение</option>
+                <option value="@WarehouseOperationType.WriteOff">Списание</option>
+                <option value="@WarehouseOperationType.Adjust">Корректировка</option>
+            </select>
+        </label>
+        <label>Период с
+            <input asp-for="FromDate" type="date" />
+        </label>
+        <label>Период по
+            <input asp-for="ToDate" type="date" />
+        </label>
+        <div class="row-actions">
+            <button type="submit">Применить</button>
+            <a class="button-link button-ghost" asp-page="/OperationLog">Сбросить</a>
+        </div>
+    </form>
+</section>
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Записи журнала</h2>
+            <p class="panel__intro">Каждая запись связана со складской операцией и показывает контекст изменения остатков.</p>
+        </div>
+    </div>
+
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="empty-state">По текущим фильтрам записи журнала не найдены.</div>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Склад</th>
+                    <th>Операция</th>
+                    <th>Товар</th>
+                    <th>Ячейки</th>
+                    <th>Количество</th>
+                    <th>Пользователь</th>
+                    <th>Детали</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>@row.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                        <td>@row.WarehouseName</td>
+                        <td>@row.Type</td>
+                        <td>@row.ProductName</td>
+                        <td>@(row.SourceCellCode ?? "—") → @(row.TargetCellCode ?? "—")</td>
+                        <td>@row.Quantity</td>
+                        <td>@row.PerformedBy</td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(row.Comment))
+                            {
+                                <div>@row.Comment</div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(row.LogMessage))
+                            {
+                                <div class="subtle">@row.LogMessage</div>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

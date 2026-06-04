@@ -1,0 +1,167 @@
+@page
+@model MicroMax.Server.Pages.OperationsModel
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using MicroMax.Server.Models
+@{
+    ViewData["Title"] = "Операции";
+}
+
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">Управление остатками</p>
+        <h1>Складские операции</h1>
+        <p>
+            Операции выполняются от имени текущего администратора и всегда проходят через серверную бизнес-логику.
+            Именно этот раздел изменяет остатки и формирует записи журнала.
+        </p>
+    </div>
+    <div class="page-heading__actions">
+        <a class="button-link button-secondary" asp-page="/Stocks">Открыть остатки</a>
+        <a class="button-link button-ghost" asp-page="/OperationLog">Журнал операций</a>
+    </div>
+</section>
+
+<partial name="_AdminAlerts" />
+
+@if (Model.ProductOptions.Count == 0 || Model.CellOptions.Count == 0)
+{
+    <section class="empty-state">
+        Для выполнения операций необходимы хотя бы одна номенклатурная позиция и одна ячейка хранения.
+    </section>
+}
+else
+{
+    <section class="panel">
+        <div class="panel__header">
+            <div>
+                <h2>Выполнение операции</h2>
+                <p class="panel__intro">Исполнитель операции: <strong>@Model.PerformerName</strong>.</p>
+            </div>
+        </div>
+        <form method="post" asp-page-handler="Run" class="form-grid" id="operation-form">
+            <label>Тип операции
+                <select asp-for="OperationForm.Type" id="operation-type">
+                    <option value="@WarehouseOperationType.Receive">Приёмка</option>
+                    <option value="@WarehouseOperationType.Move">Перемещение</option>
+                    <option value="@WarehouseOperationType.WriteOff">Списание</option>
+                    <option value="@WarehouseOperationType.Adjust">Корректировка</option>
+                </select>
+            </label>
+            <label>Номенклатура
+                <select asp-for="OperationForm.ProductId" asp-items="@(new SelectList(Model.ProductOptions, "Id", "DisplayName"))"></select>
+            </label>
+            <label id="source-field">Исходная ячейка
+                <select asp-for="OperationForm.SourceCellId" asp-items="@(new SelectList(Model.CellOptions, "Id", "DisplayName"))">
+                    <option value="">Не требуется</option>
+                </select>
+            </label>
+            <label id="target-field">Целевая ячейка
+                <select asp-for="OperationForm.TargetCellId" asp-items="@(new SelectList(Model.CellOptions, "Id", "DisplayName"))">
+                    <option value="">Не требуется</option>
+                </select>
+            </label>
+            <label>
+                <span id="quantity-label">Количество</span>
+                <input asp-for="OperationForm.Quantity" type="number" step="0.001" min="0" />
+            </label>
+            <label class="wide">Комментарий
+                <textarea asp-for="OperationForm.Comment" placeholder="Краткий комментарий по операции"></textarea>
+            </label>
+            <div class="wide row-actions">
+                <button type="submit" id="submit-label">Выполнить операцию</button>
+            </div>
+        </form>
+    </section>
+}
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Последние операции</h2>
+            <p class="panel__intro">Недавние изменения остатков по складам, доступным текущему администратору.</p>
+        </div>
+    </div>
+
+    @if (Model.RecentOperations.Count == 0)
+    {
+        <div class="empty-state">Операции ещё не выполнялись.</div>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Тип</th>
+                    <th>Товар</th>
+                    <th>Ячейки</th>
+                    <th>Количество</th>
+                    <th>Исполнитель</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.RecentOperations)
+                {
+                    <tr>
+                        <td>@row.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
+                        <td>@row.Type</td>
+                        <td>
+                            @row.ProductName
+                            @if (!string.IsNullOrWhiteSpace(row.Comment))
+                            {
+                                <div class="subtle">@row.Comment</div>
+                            }
+                        </td>
+                        <td>@(row.SourceCellCode ?? "—") → @(row.TargetCellCode ?? "—")</td>
+                        <td>@row.Quantity</td>
+                        <td>@row.PerformedBy</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@section Scripts {
+    <script>
+        (() => {
+            const operationType = document.getElementById("operation-type");
+            const sourceField = document.getElementById("source-field");
+            const targetField = document.getElementById("target-field");
+            const quantityLabel = document.getElementById("quantity-label");
+            const submitLabel = document.getElementById("submit-label");
+
+            if (!operationType || !sourceField || !targetField || !quantityLabel || !submitLabel) {
+                return;
+            }
+
+            const syncForm = () => {
+                const operationTypeValue = Number(operationType.value);
+                const requiresSource = operationTypeValue === @((int)WarehouseOperationType.Move) || operationTypeValue === @((int)WarehouseOperationType.WriteOff);
+                const requiresTarget = operationTypeValue === @((int)WarehouseOperationType.Receive) || operationTypeValue === @((int)WarehouseOperationType.Move) || operationTypeValue === @((int)WarehouseOperationType.Adjust);
+
+                sourceField.hidden = !requiresSource;
+                targetField.hidden = !requiresTarget;
+
+                if (operationTypeValue === @((int)WarehouseOperationType.Adjust)) {
+                    quantityLabel.textContent = "Итоговый остаток";
+                    submitLabel.textContent = "Выполнить корректировку";
+                } else if (operationTypeValue === @((int)WarehouseOperationType.Receive)) {
+                    quantityLabel.textContent = "Количество";
+                    submitLabel.textContent = "Выполнить приёмку";
+                } else if (operationTypeValue === @((int)WarehouseOperationType.Move)) {
+                    quantityLabel.textContent = "Количество";
+                    submitLabel.textContent = "Выполнить перемещение";
+                } else {
+                    quantityLabel.textContent = "Количество";
+                    submitLabel.textContent = "Выполнить списание";
+                }
+            };
+
+            operationType.addEventListener("change", syncForm);
+            syncForm();
+        })();
+    </script>
+}

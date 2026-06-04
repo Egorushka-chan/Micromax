@@ -1,0 +1,154 @@
+@page
+@model MicroMax.Server.Pages.ProductsModel
+@{
+    ViewData["Title"] = "Номенклатура";
+}
+
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">Каталог MicroMax</p>
+        <h1>Номенклатура</h1>
+        <p>
+            Раздел содержит глобальный каталог товаров: артикулы, наименования, единицы измерения и минимальные остатки.
+            Удаление не используется, чтобы не нарушать историю складских операций.
+        </p>
+    </div>
+    <div class="page-heading__actions">
+        <a class="button-link button-secondary" asp-page="/Stocks">Остатки</a>
+        <a class="button-link button-ghost" asp-page="/Operations">Операции</a>
+    </div>
+</section>
+
+<partial name="_AdminAlerts" />
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Поиск по каталогу</h2>
+            <p class="panel__intro">Поиск работает по названию и артикулу.</p>
+        </div>
+    </div>
+    <form method="get" class="filter-form">
+        <label>Поиск
+            <input asp-for="Search" placeholder="Название или SKU" />
+        </label>
+        <div class="row-actions">
+            <button type="submit">Найти</button>
+            <a class="button-link button-ghost" asp-page="/Products">Сбросить</a>
+        </div>
+    </form>
+</section>
+
+<div class="grid grid--two">
+    <section class="panel">
+        <div class="panel__header">
+            <div>
+                <h2>Новая позиция</h2>
+                <p class="panel__intro">Добавление новой номенклатурной позиции в общий каталог.</p>
+            </div>
+        </div>
+        <form method="post" asp-page-handler="Create" class="form-grid">
+            <label>Артикул
+                <input asp-for="CreateForm.Sku" placeholder="Например, MM-100" />
+            </label>
+            <label>Название
+                <input asp-for="CreateForm.Name" placeholder="Например, Контейнер 20 л" />
+            </label>
+            <label>Единица измерения
+                <input asp-for="CreateForm.Unit" placeholder="шт, кг, м, л" />
+            </label>
+            <label>Минимальный остаток
+                <input asp-for="CreateForm.MinQuantity" type="number" step="0.001" min="0" />
+            </label>
+            <div class="wide">
+                <button type="submit">Добавить номенклатуру</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel__header">
+            <div>
+                <h2>Редактирование</h2>
+                <p class="panel__intro">Используйте форму для корректировки карточки товара без изменения истории операций.</p>
+            </div>
+        </div>
+        @if (Model.SelectedProduct is null)
+        {
+            <div class="empty-state">Выберите позицию в таблице ниже, чтобы открыть форму редактирования.</div>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Edit" class="form-grid">
+                <input asp-for="EditForm.Id" type="hidden" />
+                <label>Артикул
+                    <input asp-for="EditForm.Sku" />
+                </label>
+                <label>Название
+                    <input asp-for="EditForm.Name" />
+                </label>
+                <label>Единица измерения
+                    <input asp-for="EditForm.Unit" />
+                </label>
+                <label>Минимальный остаток
+                    <input asp-for="EditForm.MinQuantity" type="number" step="0.001" min="0" />
+                </label>
+                <div class="wide">
+                    <button type="submit">Сохранить изменения</button>
+                </div>
+            </form>
+        }
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel__header">
+        <div>
+            <h2>Каталог номенклатуры</h2>
+            <p class="panel__intro">Количество активных размещений считается по доступным администраторам складам.</p>
+        </div>
+    </div>
+
+    @if (Model.Products.Count == 0)
+    {
+        <div class="empty-state">По текущему запросу номенклатура не найдена.</div>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                <tr>
+                    <th>Артикул</th>
+                    <th>Название</th>
+                    <th>Ед. изм.</th>
+                    <th>Мин. остаток</th>
+                    <th>Активные размещения</th>
+                    <th>Действия</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Products)
+                {
+                    <tr>
+                        <td>@row.Sku</td>
+                        <td>@row.Name</td>
+                        <td>@row.Unit</td>
+                        <td>@row.MinQuantity</td>
+                        <td>@row.ActiveLocationCount</td>
+                        <td>
+                            <div class="row-actions">
+                                <a class="button-link button-secondary"
+                                   asp-page="/Products"
+                                   asp-route-search="@Model.Search"
+                                   asp-route-editId="@row.Id">Изменить</a>
+                                <a class="button-link button-ghost" asp-page="/Stocks" asp-route-productId="@row.Id">Остатки</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

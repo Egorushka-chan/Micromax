@@ -25,9 +25,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorPages(options =>
 {
-    options.Conventions.AuthorizePage("/Index", AdminPanelAuthenticationDefaults.PolicyName);
+    options.Conventions.AuthorizeFolder("/", AdminPanelAuthenticationDefaults.PolicyName);
     options.Conventions.AllowAnonymousToPage("/Login");
     options.Conventions.AllowAnonymousToPage("/AccessDenied");
+    options.Conventions.AllowAnonymousToPage("/Error");
 });
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

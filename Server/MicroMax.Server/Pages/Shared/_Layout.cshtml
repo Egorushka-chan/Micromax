@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="utf-8" />
@@ -10,49 +10,101 @@
     <link rel="stylesheet" href="~/MicroMax.Server.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">MicroMax</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Панель</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">О проекте</a>
-                        </li>
-                    </ul>
-                    <div class="admin-session">
+@{
+    var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
+    var showNavigation = currentPage is not "/Login" and not "/AccessDenied";
+    var navigationItems = new[]
+    {
+        new { Label = "Главная", Page = "/Index" },
+        new { Label = "Склады", Page = "/Warehouses" },
+        new { Label = "Зоны", Page = "/Zones" },
+        new { Label = "Ячейки", Page = "/Cells" },
+        new { Label = "Номенклатура", Page = "/Products" },
+        new { Label = "Остатки", Page = "/Stocks" },
+        new { Label = "Операции", Page = "/Operations" },
+        new { Label = "Пользователи", Page = "/Users" },
+        new { Label = "Журнал", Page = "/OperationLog" }
+    };
+
+    string GetNavLinkClass(string page) =>
+        string.Equals(currentPage, page, StringComparison.OrdinalIgnoreCase)
+            ? "app-nav__link app-nav__link--active"
+            : "app-nav__link";
+}
+    <div class="app-shell">
+        @if (showNavigation)
+        {
+            <header class="app-header">
+                <div class="app-header__inner">
+                    <a class="app-brand" asp-page="/Index">
+                        <span class="app-brand__eyebrow">Админ-панель</span>
+                        <span class="app-brand__name">MicroMax</span>
+                    </a>
+                    <nav class="app-nav app-nav--desktop" aria-label="Основное меню панели">
+                        @foreach (var item in navigationItems)
+                        {
+                            <a class="@GetNavLinkClass(item.Page)" asp-page="@item.Page">@item.Label</a>
+                        }
+                    </nav>
+                    <div class="admin-session admin-session--desktop">
                         @if (User.Identity?.IsAuthenticated == true)
                         {
                             <span class="admin-session__name">@User.Identity.Name</span>
-                            <form method="post" asp-page="/Logout">
-                                <button type="submit" class="admin-session__button">Выйти</button>
+                            <form method="post" asp-page="/Logout" class="admin-session__form">
+                                <button type="submit" class="admin-session__button">Выход</button>
                             </form>
                         }
                         else
                         {
-                            <a class="admin-session__link" asp-page="/Login">Войти</a>
+                            <a class="admin-session__link" asp-page="/Login">Вход</a>
                         }
                     </div>
+                    <details class="app-mobile-menu">
+                        <summary class="app-mobile-menu__toggle">Меню</summary>
+                        <div class="app-mobile-menu__panel">
+                            <nav class="app-nav app-nav--mobile" aria-label="Мобильное меню панели">
+                                @foreach (var item in navigationItems)
+                                {
+                                    <a class="@GetNavLinkClass(item.Page)" asp-page="@item.Page">@item.Label</a>
+                                }
+                            </nav>
+                            <div class="admin-session admin-session--mobile">
+                                @if (User.Identity?.IsAuthenticated == true)
+                                {
+                                    <span class="admin-session__name">@User.Identity.Name</span>
+                                    <form method="post" asp-page="/Logout" class="admin-session__form">
+                                        <button type="submit" class="admin-session__button">Выход</button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <a class="admin-session__link" asp-page="/Login">Вход</a>
+                                }
+                            </div>
+                        </div>
+                    </details>
                 </div>
-            </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+            </header>
+        }
+        else
+        {
+            <header class="auth-header">
+                <a class="app-brand app-brand--compact" asp-page="/Index">
+                    <span class="app-brand__eyebrow">MicroMax</span>
+                    <span class="app-brand__name">Система микросклада</span>
+                </a>
+            </header>
+        }
+
+        <main role="main" class="app-main">
             @RenderBody()
         </main>
     </div>
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - MicroMax - <a asp-area="" asp-page="/Privacy">О проекте</a>
+    <footer class="app-footer">
+        <div class="app-footer__inner">
+            <span>&copy; 2026 MicroMax</span>
+            <span>Административная панель MVP</span>
         </div>
     </footer>
 
