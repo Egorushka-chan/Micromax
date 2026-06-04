@@ -1,9 +1,8 @@
-using MicroMax.Server.Data;
-using MicroMax.Server.Models;
+using MicroMax.Server.Api.Roles;
+using MicroMax.Server.Services.Api;
 using MicroMax.Server.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Controllers;
 
@@ -12,53 +11,50 @@ namespace MicroMax.Server.Controllers;
 /// </summary>
 [Authorize]
 [Route("api/roles")]
+[Produces("application/json", "application/problem+json")]
 public sealed class RolesController(
-    MicroMaxDbContext db,
-    CurrentUserService currentUserService) : MicroMaxControllerBase(db)
+    RolesApiService rolesApiService,
+    CurrentUserService currentUserService) : MicroMaxControllerBase
 {
+    /// <summary>
+    /// Возвращает список доступных ролей.
+    /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<Role>>> GetAsync() =>
-        Ok(await Db.Roles.OrderBy(x => x.Name).ToListAsync());
-
-    [HttpPost]
-    public async Task<ActionResult<Role>> CreateAsync([FromBody] Role item)
+    [ProducesResponseType(typeof(IReadOnlyList<RoleResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<RoleResponse>>> GetAsync(CancellationToken cancellationToken)
     {
-        item.Code = WarehousePermissionService.NormalizeRoleCode(item.Code);
-        if (await Db.Roles.AnyAsync(x => x.Code == item.Code))
-        {
-            return BadRequest(new { error = "Такая техническая роль уже существует." });
-        }
-
-        return await CreateEntityAsync(item);
+        return Ok(await rolesApiService.GetAsync(cancellationToken));
     }
 
+    /// <summary>
+    /// Создаёт новую роль.
+    /// </summary>
+    [HttpPost]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(RoleResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<RoleResponse>> CreateAsync(
+        [FromBody] CreateRoleRequest request,
+        CancellationToken cancellationToken)
+    {
+        var role = await rolesApiService.CreateAsync(request, cancellationToken);
+        return CreatedResource($"/api/roles/{role.Id}", role);
+    }
+
+    /// <summary>
+    /// Удаляет пользовательскую роль.
+    /// </summary>
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> DeleteAsync(int id)
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
     {
         var currentUserId = currentUserService.GetRequiredUserId(User);
-        var adminWarehouseId = await Db.WarehouseUsers
-            .Where(x => x.UserId == currentUserId && x.Role!.Code == SystemRoleCodes.Admin)
-            .Select(x => x.WarehouseId)
-            .FirstOrDefaultAsync();
-
-        if (adminWarehouseId == 0)
-        {
-            return BadRequest(new { error = "Удаление ролей доступно только ADMIN." });
-        }
-
-        var item = await Db.Roles.FindAsync(id);
-        if (item is null)
-        {
-            return NotFound();
-        }
-
-        if (item.Code is SystemRoleCodes.Admin or SystemRoleCodes.Worker or SystemRoleCodes.Viewer)
-        {
-            return BadRequest(new { error = "Базовые роли ADMIN, WORKER и VIEWER не удаляются." });
-        }
-
-        Db.Remove(item);
-        await Db.SaveChangesAsync();
+        await rolesApiService.DeleteAsync(currentUserId, id, cancellationToken);
         return NoContent();
     }
 }

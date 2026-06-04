@@ -609,7 +609,9 @@ class MicroMaxApiClient(
 
         return runCatching {
             val json = JSONObject(response.body)
-            json.optString("error")
+            json.optString("detail")
+                .ifBlank { json.optString("title") }
+                .ifBlank { json.optString("error") }
                 .ifBlank { json.optString("message") }
                 .ifBlank { fallback }
         }.getOrDefault(response.body.ifBlank { fallback })

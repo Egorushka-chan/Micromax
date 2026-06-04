@@ -1,10 +1,12 @@
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using MicroMax.Server.Configuration;
 using MicroMax.Server.Data;
+using MicroMax.Server.Infrastructure.Api;
 using MicroMax.Server.Services;
-using MicroMax.Server.Services.Auth;
+using MicroMax.Server.Services.Api;
 using MicroMax.Server.Services.Assistant.Configuration;
 using MicroMax.Server.Services.Assistant.Core;
 using MicroMax.Server.Services.Assistant.Execution;
@@ -12,16 +14,28 @@ using MicroMax.Server.Services.Assistant.Prompting;
 using MicroMax.Server.Services.Assistant.Providers;
 using MicroMax.Server.Services.Assistant.Recovery;
 using MicroMax.Server.Services.Assistant.Registry;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using MicroMax.Server.Services.Auth;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Instance ??= context.HttpContext.Request.Path;
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+    };
+});
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, ".data-protection-keys")));
 
 builder.Services.AddRazorPages(options =>
 {
@@ -40,9 +54,7 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Description = "REST API информационной системы управления микроскладом."
     });
-});
-builder.Services.AddSwaggerGen(options =>
-{
+    options.SupportNonNullableReferenceTypes();
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -52,20 +64,15 @@ builder.Services.AddSwaggerGen(options =>
         In = ParameterLocation.Header,
         Description = "JWT access token"
     });
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    options.OperationFilter<AuthorizeOperationFilter>();
+    options.OperationFilter<ProblemDetailsOperationFilter>();
+
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
     {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            []
-        }
-    });
+        options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+    }
 });
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -89,6 +96,17 @@ builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<WarehousePermissionService>();
 builder.Services.AddScoped<AdminPanelSignInService>();
 builder.Services.AddScoped<IAuthorizationHandler, AdminPanelAuthorizationHandler>();
+builder.Services.AddScoped<WarehousesApiService>();
+builder.Services.AddScoped<WarehouseUsersApiService>();
+builder.Services.AddScoped<ZonesApiService>();
+builder.Services.AddScoped<CellsApiService>();
+builder.Services.AddScoped<ProductsApiService>();
+builder.Services.AddScoped<StocksApiService>();
+builder.Services.AddScoped<OperationsApiService>();
+builder.Services.AddScoped<RolesApiService>();
+builder.Services.AddScoped<UsersApiService>();
+builder.Services.AddScoped<AssistantCommandExecutionService>();
+builder.Services.AddScoped<AssistantApiService>();
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -186,7 +204,43 @@ if (!app.Environment.IsDevelopment())
 app.UseSwagger();
 app.UseSwaggerUI();
 
+app.UseWhen(
+    context => context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase),
+    api =>
+    {
+        api.UseMiddleware<ApiExceptionHandlingMiddleware>();
+    });
+
 app.UseRouting();
+app.UseStatusCodePages(async statusCodeContext =>
+{
+    var httpContext = statusCodeContext.HttpContext;
+    if (!httpContext.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+    {
+        return;
+    }
+
+    if (httpContext.Response.HasStarted ||
+        httpContext.Response.ContentLength is > 0 ||
+        !string.IsNullOrWhiteSpace(httpContext.Response.ContentType))
+    {
+        return;
+    }
+
+    var problemDetails = CreateProblemDetailsForStatusCode(httpContext.Response.StatusCode, httpContext.Request.Path);
+    if (problemDetails is null)
+    {
+        return;
+    }
+
+    httpContext.Response.ContentType = "application/problem+json";
+    var problemDetailsService = httpContext.RequestServices.GetRequiredService<IProblemDetailsService>();
+    await problemDetailsService.WriteAsync(new ProblemDetailsContext
+    {
+        HttpContext = httpContext,
+        ProblemDetails = problemDetails
+    });
+});
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -196,5 +250,34 @@ app.MapRazorPages()
 app.MapControllers();
 
 app.Run();
+
+static ProblemDetails? CreateProblemDetailsForStatusCode(int statusCode, PathString path)
+{
+    return statusCode switch
+    {
+        StatusCodes.Status401Unauthorized => new ProblemDetails
+        {
+            Status = statusCode,
+            Title = "Требуется аутентификация",
+            Detail = "Для доступа к ресурсу требуется действующий токен.",
+            Instance = path
+        },
+        StatusCodes.Status403Forbidden => new ProblemDetails
+        {
+            Status = statusCode,
+            Title = "Доступ запрещен",
+            Detail = "У пользователя недостаточно прав для выполнения запроса.",
+            Instance = path
+        },
+        StatusCodes.Status404NotFound => new ProblemDetails
+        {
+            Status = statusCode,
+            Title = "Ресурс не найден",
+            Detail = "Запрошенный маршрут или ресурс не найден.",
+            Instance = path
+        },
+        _ => null
+    };
+}
 
 public partial class Program;

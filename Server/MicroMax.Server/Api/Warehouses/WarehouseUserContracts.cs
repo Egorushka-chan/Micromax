@@ -9,5 +9,9 @@ public sealed record WarehouseUserResponse(
     string RoleName,
     DateTimeOffset CreatedAt);
 
-public sealed record AddWarehouseUserRequest(string Email, string RoleCode);
-public sealed record UpdateWarehouseUserRoleRequest(string RoleCode);
+public sealed record AddWarehouseUserRequest(
+    string Email,
+    string RoleCode);
+
+public sealed record UpdateWarehouseUserRoleRequest(
+    string RoleCode);

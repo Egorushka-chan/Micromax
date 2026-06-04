@@ -1,6 +1,7 @@
 using MicroMax.Server.Api.Auth;
 using MicroMax.Server.Configuration;
 using MicroMax.Server.Data;
+using MicroMax.Server.Infrastructure.Api;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -21,12 +22,12 @@ public sealed class AuthService(
         ValidatePassword(request.Password);
         if (string.IsNullOrWhiteSpace(displayName))
         {
-            throw new InvalidOperationException("Имя пользователя не должно быть пустым.");
+            throw new ApiValidationException("Имя пользователя не должно быть пустым.");
         }
 
         if (await db.AppUsers.AnyAsync(x => x.Email == email, cancellationToken))
         {
-            throw new InvalidOperationException("Пользователь с таким email уже существует.");
+            throw new ApiConflictException("Пользователь с таким email уже существует.");
         }
 
         var user = new Models.AppUser
@@ -48,17 +49,17 @@ public sealed class AuthService(
     {
         var email = NormalizeEmail(request.Email);
         var user = await db.AppUsers.FirstOrDefaultAsync(x => x.Email == email, cancellationToken)
-            ?? throw new InvalidOperationException("Пользователь с таким email не найден.");
+            ?? throw new ApiUnauthorizedException("Пользователь с таким email не найден.");
 
         if (!user.IsActive)
         {
-            throw new InvalidOperationException("Учетная запись пользователя отключена.");
+            throw new ApiForbiddenException("Учетная запись пользователя отключена.");
         }
 
         var verificationResult = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
         if (verificationResult == PasswordVerificationResult.Failed)
         {
-            throw new InvalidOperationException("Неверный пароль.");
+            throw new ApiUnauthorizedException("Неверный пароль.");
         }
 
         return await IssueTokensAsync(user, cancellationToken);
@@ -70,16 +71,16 @@ public sealed class AuthService(
         var refreshToken = await db.RefreshTokens
             .Include(x => x.User)
             .FirstOrDefaultAsync(x => x.TokenHash == tokenHash, cancellationToken)
-            ?? throw new InvalidOperationException("Refresh token не найден.");
+            ?? throw new ApiUnauthorizedException("Refresh token не найден.");
 
         if (refreshToken.RevokedAt is not null || refreshToken.ExpiresAt <= DateTimeOffset.UtcNow)
         {
-            throw new InvalidOperationException("Refresh token больше не действителен.");
+            throw new ApiUnauthorizedException("Refresh token больше не действителен.");
         }
 
         if (refreshToken.User is null || !refreshToken.User.IsActive)
         {
-            throw new InvalidOperationException("Учетная запись пользователя отключена.");
+            throw new ApiForbiddenException("Учетная запись пользователя отключена.");
         }
 
         refreshToken.RevokedAt = DateTimeOffset.UtcNow;
@@ -119,7 +120,7 @@ public sealed class AuthService(
                         y.Role.Name))
                     .ToList()))
             .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new InvalidOperationException("Пользователь не найден.");
+            ?? throw new ApiNotFoundException("Пользователь не найден.");
 
         return user;
     }
@@ -147,7 +148,7 @@ public sealed class AuthService(
         var normalizedEmail = email.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(normalizedEmail) || !normalizedEmail.Contains('@'))
         {
-            throw new InvalidOperationException("Укажите корректный email.");
+            throw new ApiValidationException("Укажите корректный email.");
         }
 
         return normalizedEmail;
@@ -157,7 +158,7 @@ public sealed class AuthService(
     {
         if (string.IsNullOrWhiteSpace(password) || password.Length < 8)
         {
-            throw new InvalidOperationException("Пароль должен содержать не менее 8 символов.");
+            throw new ApiValidationException("Пароль должен содержать не менее 8 символов.");
         }
     }
 }

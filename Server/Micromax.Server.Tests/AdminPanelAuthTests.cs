@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -404,9 +405,11 @@ public sealed class AdminPanelAuthTests : IClassFixture<AdminPanelWebApplication
     private static async Task<string> GetAntiForgeryTokenAsync(HttpClient client, string path)
     {
         var page = await client.GetAsync(path);
-        page.EnsureSuccessStatusCode();
-
         var html = await page.Content.ReadAsStringAsync();
+        Assert.True(
+            page.IsSuccessStatusCode,
+            $"Expected successful response for '{path}', got {(int)page.StatusCode}. Body:{Environment.NewLine}{html}");
+
         return ExtractAntiForgeryToken(html);
     }
 
@@ -429,6 +432,7 @@ public sealed class AdminPanelWebApplicationFactory : WebApplicationFactory<Prog
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
+        builder.ConfigureLogging(logging => logging.ClearProviders());
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<DbContextOptions<MicroMaxDbContext>>();

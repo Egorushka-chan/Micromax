@@ -81,7 +81,6 @@ public sealed class LoginModel(AdminPanelSignInService signInService) : PageMode
     public sealed class InputModel
     {
         [Required(ErrorMessage = "Укажите email.")]
-        [EmailAddress(ErrorMessage = "Укажите корректный email.")]
         public string Email { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Укажите пароль.")]

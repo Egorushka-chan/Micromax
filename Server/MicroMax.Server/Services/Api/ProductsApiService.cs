@@ -1,0 +1,111 @@
+using MicroMax.Server.Api.Products;
+using MicroMax.Server.Infrastructure.Api;
+using MicroMax.Server.Models;
+using MicroMax.Server.Services.Auth;
+using Microsoft.EntityFrameworkCore;
+
+namespace MicroMax.Server.Services.Api;
+
+public sealed class ProductsApiService(
+    Data.MicroMaxDbContext db,
+    WarehousePermissionService warehousePermissionService)
+{
+    public async Task<IReadOnlyList<ProductResponse>> GetAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        await warehousePermissionService.EnsureAnyWarehouseAccessAsync(userId, cancellationToken);
+
+        return await db.Products
+            .OrderBy(x => x.Name)
+            .Select(x => new ProductResponse(x.Id, x.Sku, x.Name, x.Unit, x.MinQuantity))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ProductLocationResponse>> GetLocationsAsync(
+        int userId,
+        int productId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await db.Products.AnyAsync(x => x.Id == productId, cancellationToken))
+        {
+            throw new ApiNotFoundException("Номенклатура не найдена.");
+        }
+
+        var warehouseIds = await warehousePermissionService.GetAccessibleWarehouseIdsAsync(userId, cancellationToken);
+
+        return await db.StockBalances
+            .Where(x => x.ProductId == productId && x.Quantity > 0 && warehouseIds.Contains(x.StorageCell!.StorageZone!.WarehouseId))
+            .Select(x => new ProductLocationResponse(
+                x.StorageCellId,
+                x.StorageCell!.Code,
+                x.StorageCell.StorageZone!.Code,
+                x.Quantity))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<ProductResponse> CreateAsync(
+        int userId,
+        CreateProductRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+
+        var sku = request.Sku.Trim();
+        if (await db.Products.AnyAsync(x => x.Sku == sku, cancellationToken))
+        {
+            throw new ApiConflictException("Номенклатура с таким SKU уже существует.");
+        }
+
+        var product = new Product
+        {
+            Sku = sku,
+            Name = request.Name.Trim(),
+            Unit = request.Unit.Trim(),
+            MinQuantity = request.MinQuantity
+        };
+
+        db.Products.Add(product);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return ToResponse(product);
+    }
+
+    public async Task<ProductResponse> UpdateAsync(
+        int userId,
+        int productId,
+        UpdateProductRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+
+        var product = await db.Products.FindAsync([productId], cancellationToken)
+            ?? throw new ApiNotFoundException("Номенклатура не найдена.");
+
+        var sku = request.Sku.Trim();
+        if (await db.Products.AnyAsync(x => x.Id != productId && x.Sku == sku, cancellationToken))
+        {
+            throw new ApiConflictException("Номенклатура с таким SKU уже существует.");
+        }
+
+        product.Sku = sku;
+        product.Name = request.Name.Trim();
+        product.Unit = request.Unit.Trim();
+        product.MinQuantity = request.MinQuantity;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return ToResponse(product);
+    }
+
+    public async Task DeleteAsync(int userId, int productId, CancellationToken cancellationToken = default)
+    {
+        await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+
+        var product = await db.Products.FindAsync([productId], cancellationToken)
+            ?? throw new ApiNotFoundException("Номенклатура не найдена.");
+
+        db.Products.Remove(product);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static ProductResponse ToResponse(Product product) =>
+        new(product.Id, product.Sku, product.Name, product.Unit, product.MinQuantity);
+}

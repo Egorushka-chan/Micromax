@@ -1,9 +1,8 @@
-using MicroMax.Server.Data;
-using MicroMax.Server.Models;
+using MicroMax.Server.Api.Zones;
+using MicroMax.Server.Services.Api;
 using MicroMax.Server.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Controllers;
 
@@ -12,48 +11,54 @@ namespace MicroMax.Server.Controllers;
 /// </summary>
 [Authorize]
 [Route("api/zones")]
+[Produces("application/json", "application/problem+json")]
 public sealed class ZonesController(
-    MicroMaxDbContext db,
-    CurrentUserService currentUserService,
-    WarehousePermissionService warehousePermissionService) : MicroMaxControllerBase(db)
+    ZonesApiService zonesApiService,
+    CurrentUserService currentUserService) : MicroMaxControllerBase
 {
+    /// <summary>
+    /// Возвращает зоны хранения в доступных пользователю складах.
+    /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<StorageZone>>> GetAsync(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(IReadOnlyList<StorageZoneResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<StorageZoneResponse>>> GetAsync(CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId(User);
-        var warehouseIds = await warehousePermissionService.GetAccessibleWarehouseIdsAsync(userId, cancellationToken);
-
-        return Ok(await Db.StorageZones
-            .Include(x => x.Warehouse)
-            .Where(x => warehouseIds.Contains(x.WarehouseId))
-            .OrderBy(x => x.Code)
-            .ToListAsync(cancellationToken));
+        return Ok(await zonesApiService.GetAsync(userId, cancellationToken));
     }
 
+    /// <summary>
+    /// Создаёт новую зону хранения.
+    /// </summary>
     [HttpPost]
-    public async Task<ActionResult<StorageZone>> CreateAsync([FromBody] StorageZone item, CancellationToken cancellationToken)
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(StorageZoneResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<StorageZoneResponse>> CreateAsync(
+        [FromBody] CreateStorageZoneRequest request,
+        CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId(User);
-        await warehousePermissionService.EnsureWarehousePermissionAsync(
-            userId,
-            item.WarehouseId,
-            WarehousePermission.WarehouseManage,
-            cancellationToken);
-
-        return await CreateEntityAsync(item);
+        var zone = await zonesApiService.CreateAsync(userId, request, cancellationToken);
+        return CreatedResource($"/api/zones/{zone.Id}", zone);
     }
 
+    /// <summary>
+    /// Удаляет зону хранения.
+    /// </summary>
     [HttpDelete("{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId(User);
-        var warehouseId = await warehousePermissionService.GetWarehouseIdForZoneAsync(id, cancellationToken);
-        await warehousePermissionService.EnsureWarehousePermissionAsync(
-            userId,
-            warehouseId,
-            WarehousePermission.WarehouseManage,
-            cancellationToken);
-
-        return await DeleteEntityAsync<StorageZone>(id);
+        await zonesApiService.DeleteAsync(userId, id, cancellationToken);
+        return NoContent();
     }
 }

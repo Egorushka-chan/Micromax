@@ -1,167 +1,92 @@
 using MicroMax.Server.Api.Warehouses;
-using MicroMax.Server.Data;
-using MicroMax.Server.Models;
+using MicroMax.Server.Services.Api;
 using MicroMax.Server.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Controllers;
 
-[ApiController]
+/// <summary>
+/// Управляет назначениями пользователей на склад.
+/// </summary>
 [Authorize]
 [Route("api/warehouses/{warehouseId:int}/users")]
+[Produces("application/json", "application/problem+json")]
 public sealed class WarehouseUsersController(
-    MicroMaxDbContext db,
-    CurrentUserService currentUserService,
-    WarehousePermissionService warehousePermissionService) : ControllerBase
+    WarehouseUsersApiService warehouseUsersApiService,
+    CurrentUserService currentUserService) : MicroMaxControllerBase
 {
+    /// <summary>
+    /// Возвращает пользователей выбранного склада.
+    /// </summary>
     [HttpGet]
+    [ProducesResponseType(typeof(IReadOnlyList<WarehouseUserResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<IReadOnlyList<WarehouseUserResponse>>> GetAsync(
         int warehouseId,
         CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId(User);
-        await warehousePermissionService.EnsureWarehousePermissionAsync(
-            userId,
-            warehouseId,
-            WarehousePermission.UsersManage,
-            cancellationToken);
-
-        var users = await db.WarehouseUsers
-            .Where(x => x.WarehouseId == warehouseId)
-            .OrderBy(x => x.User!.DisplayName)
-            .Select(x => new WarehouseUserResponse(
-                x.UserId,
-                x.User!.Email,
-                x.User.DisplayName,
-                x.User.IsActive,
-                x.Role!.Code,
-                x.Role.Name,
-                x.CreatedAt))
-            .ToListAsync(cancellationToken);
-
-        return Ok(users);
+        return Ok(await warehouseUsersApiService.GetAsync(userId, warehouseId, cancellationToken));
     }
 
+    /// <summary>
+    /// Добавляет пользователя в выбранный склад.
+    /// </summary>
     [HttpPost]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(WarehouseUserResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<WarehouseUserResponse>> CreateAsync(
         int warehouseId,
         [FromBody] AddWarehouseUserRequest request,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var currentUserId = currentUserService.GetRequiredUserId(User);
-            await warehousePermissionService.EnsureWarehousePermissionAsync(
-                currentUserId,
-                warehouseId,
-                WarehousePermission.UsersManage,
-                cancellationToken);
-
-            var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-            var targetUser = await db.AppUsers.FirstOrDefaultAsync(x => x.Email == normalizedEmail, cancellationToken)
-                ?? throw new InvalidOperationException("Пользователь с указанным email не найден.");
-            var role = await warehousePermissionService.GetRequiredRoleAsync(request.RoleCode, cancellationToken);
-
-            if (await db.WarehouseUsers.AnyAsync(
-                    x => x.WarehouseId == warehouseId && x.UserId == targetUser.Id,
-                    cancellationToken))
-            {
-                throw new InvalidOperationException("Пользователь уже добавлен в этот склад.");
-            }
-
-            var membership = new WarehouseUser
-            {
-                WarehouseId = warehouseId,
-                UserId = targetUser.Id,
-                RoleId = role.Id,
-                CreatedAt = DateTimeOffset.UtcNow
-            };
-            db.WarehouseUsers.Add(membership);
-            await db.SaveChangesAsync(cancellationToken);
-
-            return Ok(new WarehouseUserResponse(
-                targetUser.Id,
-                targetUser.Email,
-                targetUser.DisplayName,
-                targetUser.IsActive,
-                role.Code,
-                role.Name,
-                membership.CreatedAt));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        var userId = currentUserService.GetRequiredUserId(User);
+        var membership = await warehouseUsersApiService.CreateAsync(userId, warehouseId, request, cancellationToken);
+        return CreatedResource($"/api/warehouses/{warehouseId}/users/{membership.UserId}", membership);
     }
 
+    /// <summary>
+    /// Изменяет роль пользователя в выбранном складе.
+    /// </summary>
     [HttpPatch("{userId:int}/role")]
-    public async Task<IActionResult> UpdateRoleAsync(
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(WarehouseUserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WarehouseUserResponse>> UpdateRoleAsync(
         int warehouseId,
         int userId,
         [FromBody] UpdateWarehouseUserRoleRequest request,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var currentUserId = currentUserService.GetRequiredUserId(User);
-            await warehousePermissionService.EnsureWarehousePermissionAsync(
-                currentUserId,
-                warehouseId,
-                WarehousePermission.UsersManage,
-                cancellationToken);
-
-            var membership = await db.WarehouseUsers
-                .Include(x => x.Role)
-                .FirstOrDefaultAsync(x => x.WarehouseId == warehouseId && x.UserId == userId, cancellationToken)
-                ?? throw new InvalidOperationException("Пользователь не найден в выбранном складе.");
-
-            var role = await warehousePermissionService.GetRequiredRoleAsync(request.RoleCode, cancellationToken);
-            membership.RoleId = role.Id;
-            await db.SaveChangesAsync(cancellationToken);
-
-            return Ok(new WarehouseUserResponse(
-                membership.UserId,
-                (await db.AppUsers.Where(x => x.Id == membership.UserId).Select(x => x.Email).FirstAsync(cancellationToken)),
-                (await db.AppUsers.Where(x => x.Id == membership.UserId).Select(x => x.DisplayName).FirstAsync(cancellationToken)),
-                (await db.AppUsers.Where(x => x.Id == membership.UserId).Select(x => x.IsActive).FirstAsync(cancellationToken)),
-                role.Code,
-                role.Name,
-                membership.CreatedAt));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        var currentUserId = currentUserService.GetRequiredUserId(User);
+        return Ok(await warehouseUsersApiService.UpdateRoleAsync(currentUserId, warehouseId, userId, request, cancellationToken));
     }
 
+    /// <summary>
+    /// Удаляет пользователя из выбранного склада.
+    /// </summary>
     [HttpDelete("{userId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(
         int warehouseId,
         int userId,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var currentUserId = currentUserService.GetRequiredUserId(User);
-            await warehousePermissionService.EnsureWarehousePermissionAsync(
-                currentUserId,
-                warehouseId,
-                WarehousePermission.UsersManage,
-                cancellationToken);
-
-            var membership = await db.WarehouseUsers
-                .FirstOrDefaultAsync(x => x.WarehouseId == warehouseId && x.UserId == userId, cancellationToken)
-                ?? throw new InvalidOperationException("Пользователь не найден в выбранном складе.");
-
-            db.WarehouseUsers.Remove(membership);
-            await db.SaveChangesAsync(cancellationToken);
-            return NoContent();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        var currentUserId = currentUserService.GetRequiredUserId(User);
+        await warehouseUsersApiService.DeleteAsync(currentUserId, warehouseId, userId, cancellationToken);
+        return NoContent();
     }
 }

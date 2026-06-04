@@ -1,4 +1,5 @@
 using MicroMax.Server.Data;
+using MicroMax.Server.Infrastructure.Api;
 using MicroMax.Server.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +21,7 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
     {
         if (!await db.WarehouseUsers.AnyAsync(x => x.UserId == userId && x.User!.IsActive, cancellationToken))
         {
-            throw new InvalidOperationException("У пользователя нет доступа ни к одному складу.");
+            throw new ApiForbiddenException("У пользователя нет доступа ни к одному складу.");
         }
     }
 
@@ -37,12 +38,12 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
 
         if (roleCode is null)
         {
-            throw new InvalidOperationException("У пользователя нет доступа к выбранному складу.");
+            throw new ApiForbiddenException("У пользователя нет доступа к выбранному складу.");
         }
 
         if (!RolePermissionMap.HasPermission(roleCode, permission))
         {
-            throw new InvalidOperationException("Недостаточно прав для выполнения действия.");
+            throw new ApiForbiddenException("Недостаточно прав для выполнения действия.");
         }
     }
 
@@ -54,7 +55,7 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
 
         if (!hasPermission)
         {
-            throw new InvalidOperationException("Только ADMIN может изменять глобальный каталог номенклатуры.");
+            throw new ApiForbiddenException("Только ADMIN может изменять глобальный каталог номенклатуры.");
         }
     }
 
@@ -72,11 +73,11 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
             : await GetWarehouseIdForCellAsync(targetCellId.Value, cancellationToken);
 
         var warehouseId = targetWarehouseId ?? sourceWarehouseId
-            ?? throw new InvalidOperationException("Не удалось определить склад для операции.");
+            ?? throw new ApiValidationException("Не удалось определить склад для операции.");
 
         if (sourceWarehouseId is not null && targetWarehouseId is not null && sourceWarehouseId != targetWarehouseId)
         {
-            throw new InvalidOperationException("Складская операция должна выполняться в рамках одного склада.");
+            throw new ApiConflictException("Складская операция должна выполняться в рамках одного склада.");
         }
 
         await EnsureWarehousePermissionAsync(userId, warehouseId, WarehousePermission.OperationsExecute, cancellationToken);
@@ -91,7 +92,7 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
             .FirstOrDefaultAsync(cancellationToken);
 
         return warehouseId == 0
-            ? throw new InvalidOperationException("Зона хранения не найдена.")
+            ? throw new ApiNotFoundException("Зона хранения не найдена.")
             : warehouseId;
     }
 
@@ -103,7 +104,7 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
             .FirstOrDefaultAsync(cancellationToken);
 
         return warehouseId == 0
-            ? throw new InvalidOperationException("Ячейка хранения не найдена.")
+            ? throw new ApiNotFoundException("Ячейка хранения не найдена.")
             : warehouseId;
     }
 
@@ -115,7 +116,7 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
             .FirstOrDefaultAsync(cancellationToken);
 
         return warehouseId == 0
-            ? throw new InvalidOperationException("Складская операция не найдена.")
+            ? throw new ApiNotFoundException("Складская операция не найдена.")
             : warehouseId;
     }
 
@@ -123,7 +124,7 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
     {
         var normalizedRoleCode = NormalizeRoleCode(roleCode);
         return await db.Roles.FirstOrDefaultAsync(x => x.Code == normalizedRoleCode, cancellationToken)
-            ?? throw new InvalidOperationException("Указана неизвестная роль.");
+            ?? throw new ApiNotFoundException("Указанная роль не найдена.");
     }
 
     public static string NormalizeRoleCode(string roleCode)
@@ -134,7 +135,7 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
             SystemRoleCodes.Admin => SystemRoleCodes.Admin,
             SystemRoleCodes.Worker => SystemRoleCodes.Worker,
             SystemRoleCodes.Viewer => SystemRoleCodes.Viewer,
-            _ => throw new InvalidOperationException("Поддерживаются только роли ADMIN, WORKER и VIEWER.")
+            _ => throw new ApiValidationException("Поддерживаются только роли ADMIN, WORKER и VIEWER.")
         };
     }
 }

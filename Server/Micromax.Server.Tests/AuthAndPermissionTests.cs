@@ -76,7 +76,7 @@ public sealed class AuthAndPermissionTests
 
         var permissions = new WarehousePermissionService(db);
         await permissions.EnsureWarehousePermissionAsync(user.Id, warehouse.Id, WarehousePermission.StockRead);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>
             permissions.EnsureWarehousePermissionAsync(user.Id, warehouse.Id, WarehousePermission.OperationsExecute));
 
         db.WarehouseUsers.Single().RoleId = workerRole.Id;

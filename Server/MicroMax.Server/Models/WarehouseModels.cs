@@ -131,13 +131,6 @@ public sealed class OperationLog
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
-public sealed record ReceiveRequest(int ProductId, int TargetCellId, decimal Quantity, string? Comment);
-public sealed record MoveRequest(int ProductId, int SourceCellId, int TargetCellId, decimal Quantity, string? Comment);
-public sealed record WriteOffRequest(int ProductId, int SourceCellId, decimal Quantity, string? Comment);
-public sealed record AdjustRequest(int ProductId, int TargetCellId, decimal TargetQuantity, string? Comment);
-public sealed record AssistantRequest(string Text);
-public sealed record AssistantConfirmationRequest(string CommandId, bool Confirmed);
-
 public sealed class AssistantCommand
 {
     public string CommandId { get; set; } = Guid.NewGuid().ToString("N");
@@ -158,6 +151,4 @@ public sealed class AssistantCommand
     public string? ClarificationQuestion { get; set; }
     public List<AssistantChoice> Choices { get; set; } = [];
 }
-
-public sealed record AssistantCommandResult(bool Success, string Message, IReadOnlyList<string> Details);
 public sealed record AssistantChoice(string Id, string Label, string Kind);

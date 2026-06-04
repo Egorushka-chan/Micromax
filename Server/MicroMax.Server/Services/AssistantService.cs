@@ -1,9 +1,10 @@
 using System.Collections.Concurrent;
 using MicroMax.Server.Data;
+using MicroMax.Server.Infrastructure.Api;
 using MicroMax.Server.Models;
-using MicroMax.Server.Services.Auth;
 using MicroMax.Server.Services.Assistant.Core;
 using MicroMax.Server.Services.Assistant.Execution;
+using MicroMax.Server.Services.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Services;
@@ -19,7 +20,7 @@ public sealed class AssistantService(
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            throw new InvalidOperationException("Команда не должна быть пустой.");
+            throw new ApiValidationException("Команда не должна быть пустой.");
         }
 
         var warehouseIds = await warehousePermissionService.GetAccessibleWarehouseIdsAsync(userId, cancellationToken);

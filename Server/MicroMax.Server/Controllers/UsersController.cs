@@ -1,11 +1,8 @@
 using MicroMax.Server.Api.Users;
-using MicroMax.Server.Data;
-using MicroMax.Server.Models;
+using MicroMax.Server.Services.Api;
 using MicroMax.Server.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Controllers;
 
@@ -14,49 +11,60 @@ namespace MicroMax.Server.Controllers;
 /// </summary>
 [Authorize]
 [Route("api/users")]
+[Produces("application/json", "application/problem+json")]
 public sealed class UsersController(
-    MicroMaxDbContext db,
-    AuthService authService,
-    CurrentUserService currentUserService,
-    IPasswordHasher<AppUser> passwordHasher) : MicroMaxControllerBase(db)
+    UsersApiService usersApiService,
+    CurrentUserService currentUserService) : MicroMaxControllerBase
 {
+    /// <summary>
+    /// Возвращает профиль текущего пользователя.
+    /// </summary>
     [HttpGet("me")]
+    [ProducesResponseType(typeof(CurrentUserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CurrentUserResponse>> GetMeAsync(CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId(User);
-        var profile = await authService.GetUserProfileAsync(userId, cancellationToken);
-
-        return Ok(new CurrentUserResponse(
-            profile.Id,
-            profile.Email,
-            profile.DisplayName,
-            profile.IsActive,
-            profile.Warehouses
-                .Select(x => new CurrentUserWarehouseResponse(
-                    x.WarehouseId,
-                    x.WarehouseName,
-                    x.RoleCode,
-                    x.RoleName))
-                .ToList()));
+        return Ok(await usersApiService.GetCurrentAsync(userId, cancellationToken));
     }
 
+    /// <summary>
+    /// Возвращает список пользователей.
+    /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<AppUser>>> GetAsync() =>
-        Ok(await Db.AppUsers
-            .OrderBy(x => x.DisplayName)
-            .ToListAsync());
-
-    [HttpPost]
-    public async Task<ActionResult<AppUser>> CreateAsync([FromBody] AppUser item)
+    [ProducesResponseType(typeof(IReadOnlyList<UserResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<UserResponse>>> GetAsync(CancellationToken cancellationToken)
     {
-        item.Email = item.Email.Trim().ToLowerInvariant();
-        item.PasswordHash = passwordHasher.HashPassword(item, item.PasswordHash);
-        item.CreatedAt = DateTimeOffset.UtcNow;
-        item.IsActive = true;
-        return await CreateEntityAsync(item);
+        return Ok(await usersApiService.GetAsync(cancellationToken));
     }
 
+    /// <summary>
+    /// Создаёт пользователя.
+    /// </summary>
+    [HttpPost]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<UserResponse>> CreateAsync(
+        [FromBody] CreateUserRequest request,
+        CancellationToken cancellationToken)
+    {
+        var user = await usersApiService.CreateAsync(request, cancellationToken);
+        return CreatedResource($"/api/users/{user.Id}", user);
+    }
+
+    /// <summary>
+    /// Удаляет пользователя.
+    /// </summary>
     [HttpDelete("{id:int}")]
-    public Task<IActionResult> DeleteAsync(int id) =>
-        DeleteEntityAsync<AppUser>(id);
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
+    {
+        await usersApiService.DeleteAsync(id, cancellationToken);
+        return NoContent();
+    }
 }

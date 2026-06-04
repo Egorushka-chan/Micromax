@@ -1,3 +1,4 @@
+using MicroMax.Server.Api.Operations;
 using MicroMax.Server.Data;
 using MicroMax.Server.Models;
 using MicroMax.Server.Services;
@@ -61,7 +62,8 @@ public sealed class OperationsModel(
                             OperationForm.TargetCellId.Value,
                             OperationForm.Quantity,
                             NormalizeOptionalText(OperationForm.Comment)),
-                        userId);
+                        userId,
+                        cancellationToken);
                     break;
 
                 case WarehouseOperationType.Move:
@@ -87,7 +89,8 @@ public sealed class OperationsModel(
                             OperationForm.TargetCellId.Value,
                             OperationForm.Quantity,
                             NormalizeOptionalText(OperationForm.Comment)),
-                        userId);
+                        userId,
+                        cancellationToken);
                     break;
 
                 case WarehouseOperationType.WriteOff:
@@ -103,7 +106,8 @@ public sealed class OperationsModel(
                             OperationForm.SourceCellId.Value,
                             OperationForm.Quantity,
                             NormalizeOptionalText(OperationForm.Comment)),
-                        userId);
+                        userId,
+                        cancellationToken);
                     break;
 
                 case WarehouseOperationType.Adjust:
@@ -119,7 +123,8 @@ public sealed class OperationsModel(
                             OperationForm.TargetCellId.Value,
                             OperationForm.Quantity,
                             NormalizeOptionalText(OperationForm.Comment)),
-                        userId);
+                        userId,
+                        cancellationToken);
                     break;
 
                 default:

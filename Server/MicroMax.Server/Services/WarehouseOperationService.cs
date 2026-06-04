@@ -1,12 +1,16 @@
-using MicroMax.Server.Data;
+using MicroMax.Server.Api.Operations;
+using MicroMax.Server.Infrastructure.Api;
 using MicroMax.Server.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Services;
 
-public sealed class WarehouseOperationService(MicroMaxDbContext db)
+public sealed class WarehouseOperationService(Data.MicroMaxDbContext db)
 {
-    public Task<WarehouseOperation> ReceiveAsync(ReceiveRequest request, int userId) =>
+    public Task<WarehouseOperation> ReceiveAsync(
+        ReceiveRequest request,
+        int userId,
+        CancellationToken cancellationToken = default) =>
         ExecuteAsync(
             WarehouseOperationType.Receive,
             request.ProductId,
@@ -14,9 +18,13 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
             request.TargetCellId,
             request.Quantity,
             userId,
-            request.Comment);
+            request.Comment,
+            cancellationToken);
 
-    public Task<WarehouseOperation> MoveAsync(MoveRequest request, int userId) =>
+    public Task<WarehouseOperation> MoveAsync(
+        MoveRequest request,
+        int userId,
+        CancellationToken cancellationToken = default) =>
         ExecuteAsync(
             WarehouseOperationType.Move,
             request.ProductId,
@@ -24,9 +32,13 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
             request.TargetCellId,
             request.Quantity,
             userId,
-            request.Comment);
+            request.Comment,
+            cancellationToken);
 
-    public Task<WarehouseOperation> WriteOffAsync(WriteOffRequest request, int userId) =>
+    public Task<WarehouseOperation> WriteOffAsync(
+        WriteOffRequest request,
+        int userId,
+        CancellationToken cancellationToken = default) =>
         ExecuteAsync(
             WarehouseOperationType.WriteOff,
             request.ProductId,
@@ -34,27 +46,31 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
             null,
             request.Quantity,
             userId,
-            request.Comment);
+            request.Comment,
+            cancellationToken);
 
-    public async Task<WarehouseOperation> AdjustAsync(AdjustRequest request, int userId)
+    public async Task<WarehouseOperation> AdjustAsync(
+        AdjustRequest request,
+        int userId,
+        CancellationToken cancellationToken = default)
     {
         if (request.TargetQuantity < 0)
         {
-            throw new InvalidOperationException("Итоговый остаток не может быть отрицательным.");
+            throw new ApiValidationException("Итоговый остаток не может быть отрицательным.");
         }
 
-        await EnsureProductExistsAsync(request.ProductId);
-        await EnsureCellExistsAsync(request.TargetCellId, "Целевая ячейка не найдена.");
+        await EnsureProductExistsAsync(request.ProductId, cancellationToken);
+        await EnsureCellExistsAsync(request.TargetCellId, "Целевая ячейка не найдена.", cancellationToken);
 
-        await using var tx = await db.Database.BeginTransactionAsync();
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
 
-        var targetBalance = await GetOrCreateBalanceAsync(request.ProductId, request.TargetCellId);
+        var targetBalance = await GetOrCreateBalanceAsync(request.ProductId, request.TargetCellId, cancellationToken);
         var currentQuantity = targetBalance.Quantity;
         var adjustmentQuantity = Math.Abs(request.TargetQuantity - currentQuantity);
 
         if (adjustmentQuantity == 0)
         {
-            throw new InvalidOperationException("Текущий остаток уже соответствует указанному значению.");
+            throw new ApiConflictException("Текущий остаток уже соответствует указанному значению.");
         }
 
         targetBalance.Quantity = request.TargetQuantity;
@@ -62,7 +78,7 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
         var operation = new WarehouseOperation
         {
             Type = WarehouseOperationType.Adjust,
-            WarehouseId = await GetWarehouseIdFromCellsAsync(null, request.TargetCellId),
+            WarehouseId = await GetWarehouseIdFromCellsAsync(null, request.TargetCellId, cancellationToken),
             ProductId = request.ProductId,
             TargetCellId = request.TargetCellId,
             AppUserId = userId,
@@ -79,8 +95,8 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
             CreatedAt = DateTimeOffset.UtcNow
         });
 
-        await db.SaveChangesAsync();
-        await tx.CommitAsync();
+        await db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
 
         return operation;
     }
@@ -92,33 +108,34 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
         int? targetCellId,
         decimal quantity,
         int userId,
-        string? comment)
+        string? comment,
+        CancellationToken cancellationToken)
     {
         if (quantity <= 0)
         {
-            throw new InvalidOperationException("Количество должно быть положительным.");
+            throw new ApiValidationException("Количество должно быть положительным.");
         }
 
-        await EnsureProductExistsAsync(productId);
+        await EnsureProductExistsAsync(productId, cancellationToken);
 
         if (sourceCellId is not null)
         {
-            await EnsureCellExistsAsync(sourceCellId.Value, "Исходная ячейка не найдена.");
+            await EnsureCellExistsAsync(sourceCellId.Value, "Исходная ячейка не найдена.", cancellationToken);
         }
 
         if (targetCellId is not null)
         {
-            await EnsureCellExistsAsync(targetCellId.Value, "Целевая ячейка не найдена.");
+            await EnsureCellExistsAsync(targetCellId.Value, "Целевая ячейка не найдена.", cancellationToken);
         }
 
-        await using var tx = await db.Database.BeginTransactionAsync();
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
 
         if (sourceCellId is not null)
         {
-            var sourceBalance = await GetBalanceAsync(productId, sourceCellId.Value);
+            var sourceBalance = await GetBalanceAsync(productId, sourceCellId.Value, cancellationToken);
             if (sourceBalance.Quantity < quantity)
             {
-                throw new InvalidOperationException("Недостаточный остаток в исходной ячейке.");
+                throw new ApiConflictException("Недостаточный остаток в исходной ячейке.");
             }
 
             sourceBalance.Quantity -= quantity;
@@ -126,14 +143,14 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
 
         if (targetCellId is not null)
         {
-            var targetBalance = await GetOrCreateBalanceAsync(productId, targetCellId.Value);
+            var targetBalance = await GetOrCreateBalanceAsync(productId, targetCellId.Value, cancellationToken);
             targetBalance.Quantity += quantity;
         }
 
         var operation = new WarehouseOperation
         {
             Type = type,
-            WarehouseId = await GetWarehouseIdFromCellsAsync(sourceCellId, targetCellId),
+            WarehouseId = await GetWarehouseIdFromCellsAsync(sourceCellId, targetCellId, cancellationToken),
             ProductId = productId,
             SourceCellId = sourceCellId,
             TargetCellId = targetCellId,
@@ -151,23 +168,23 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
             CreatedAt = DateTimeOffset.UtcNow
         });
 
-        await db.SaveChangesAsync();
-        await tx.CommitAsync();
+        await db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
 
         return operation;
     }
 
-    private async Task<StockBalance> GetBalanceAsync(int productId, int cellId)
+    private async Task<StockBalance> GetBalanceAsync(int productId, int cellId, CancellationToken cancellationToken)
     {
         return await db.StockBalances
-            .FirstOrDefaultAsync(x => x.ProductId == productId && x.StorageCellId == cellId)
-            ?? throw new InvalidOperationException("Остаток в исходной ячейке не найден.");
+            .FirstOrDefaultAsync(x => x.ProductId == productId && x.StorageCellId == cellId, cancellationToken)
+            ?? throw new ApiNotFoundException("Остаток в исходной ячейке не найден.");
     }
 
-    private async Task<StockBalance> GetOrCreateBalanceAsync(int productId, int cellId)
+    private async Task<StockBalance> GetOrCreateBalanceAsync(int productId, int cellId, CancellationToken cancellationToken)
     {
         var balance = await db.StockBalances
-            .FirstOrDefaultAsync(x => x.ProductId == productId && x.StorageCellId == cellId);
+            .FirstOrDefaultAsync(x => x.ProductId == productId && x.StorageCellId == cellId, cancellationToken);
 
         if (balance is not null)
         {
@@ -184,43 +201,43 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
         return balance;
     }
 
-    private async Task EnsureProductExistsAsync(int productId)
+    private async Task EnsureProductExistsAsync(int productId, CancellationToken cancellationToken)
     {
-        if (!await db.Products.AnyAsync(x => x.Id == productId))
+        if (!await db.Products.AnyAsync(x => x.Id == productId, cancellationToken))
         {
-            throw new InvalidOperationException("Номенклатура не найдена.");
+            throw new ApiNotFoundException("Номенклатура не найдена.");
         }
     }
 
-    private async Task EnsureCellExistsAsync(int cellId, string errorMessage)
+    private async Task EnsureCellExistsAsync(int cellId, string errorMessage, CancellationToken cancellationToken)
     {
-        if (!await db.StorageCells.AnyAsync(x => x.Id == cellId))
+        if (!await db.StorageCells.AnyAsync(x => x.Id == cellId, cancellationToken))
         {
-            throw new InvalidOperationException(errorMessage);
+            throw new ApiNotFoundException(errorMessage);
         }
     }
 
-    private async Task<int> GetWarehouseIdFromCellsAsync(int? sourceCellId, int? targetCellId)
+    private async Task<int> GetWarehouseIdFromCellsAsync(int? sourceCellId, int? targetCellId, CancellationToken cancellationToken)
     {
         var targetWarehouseId = targetCellId is null
             ? (int?)null
             : await db.StorageCells
                 .Where(x => x.Id == targetCellId.Value)
                 .Select(x => x.StorageZone!.WarehouseId)
-                .FirstAsync();
+                .FirstAsync(cancellationToken);
         var sourceWarehouseId = sourceCellId is null
             ? (int?)null
             : await db.StorageCells
                 .Where(x => x.Id == sourceCellId.Value)
                 .Select(x => x.StorageZone!.WarehouseId)
-                .FirstAsync();
+                .FirstAsync(cancellationToken);
 
         var warehouseId = targetWarehouseId ?? sourceWarehouseId
-            ?? throw new InvalidOperationException("Не удалось определить склад для операции.");
+            ?? throw new ApiValidationException("Не удалось определить склад для операции.");
 
         if (targetWarehouseId is not null && sourceWarehouseId is not null && targetWarehouseId != sourceWarehouseId)
         {
-            throw new InvalidOperationException("Складская операция должна выполняться в рамках одного склада.");
+            throw new ApiConflictException("Складская операция должна выполняться в рамках одного склада.");
         }
 
         return warehouseId;

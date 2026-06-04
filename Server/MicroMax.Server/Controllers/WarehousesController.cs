@@ -1,9 +1,8 @@
-using MicroMax.Server.Data;
-using MicroMax.Server.Models;
+using MicroMax.Server.Api.Warehouses;
+using MicroMax.Server.Services.Api;
 using MicroMax.Server.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Controllers;
 
@@ -12,78 +11,70 @@ namespace MicroMax.Server.Controllers;
 /// </summary>
 [Authorize]
 [Route("api/warehouses")]
+[Produces("application/json", "application/problem+json")]
 public sealed class WarehousesController(
-    MicroMaxDbContext db,
-    CurrentUserService currentUserService,
-    WarehousePermissionService warehousePermissionService) : MicroMaxControllerBase(db)
+    WarehousesApiService warehousesApiService,
+    CurrentUserService currentUserService) : MicroMaxControllerBase
 {
+    /// <summary>
+    /// Возвращает склады, доступные текущему пользователю.
+    /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<Warehouse>>> GetAsync(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(IReadOnlyList<WarehouseResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<WarehouseResponse>>> GetAsync(CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId(User);
-        var warehouseIds = await warehousePermissionService.GetAccessibleWarehouseIdsAsync(userId, cancellationToken);
-
-        return Ok(await Db.Warehouses
-            .Where(x => warehouseIds.Contains(x.Id))
-            .OrderBy(x => x.Name)
-            .ToListAsync(cancellationToken));
+        return Ok(await warehousesApiService.GetAsync(userId, cancellationToken));
     }
 
+    /// <summary>
+    /// Создаёт новый склад и назначает текущего пользователя администратором склада.
+    /// </summary>
     [HttpPost]
-    public async Task<ActionResult<Warehouse>> CreateAsync([FromBody] Warehouse item, CancellationToken cancellationToken)
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(WarehouseResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WarehouseResponse>> CreateAsync(
+        [FromBody] CreateWarehouseRequest request,
+        CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId(User);
-        var adminRole = await warehousePermissionService.GetRequiredRoleAsync(SystemRoleCodes.Admin, cancellationToken);
-
-        await using var tx = await Db.Database.BeginTransactionAsync(cancellationToken);
-        Db.Warehouses.Add(item);
-        await Db.SaveChangesAsync(cancellationToken);
-
-        Db.WarehouseUsers.Add(new WarehouseUser
-        {
-            WarehouseId = item.Id,
-            UserId = userId,
-            RoleId = adminRole.Id,
-            CreatedAt = DateTimeOffset.UtcNow
-        });
-        await Db.SaveChangesAsync(cancellationToken);
-        await tx.CommitAsync(cancellationToken);
-
-        return Ok(item);
+        var warehouse = await warehousesApiService.CreateAsync(userId, request, cancellationToken);
+        return CreatedResource($"/api/warehouses/{warehouse.Id}", warehouse);
     }
 
+    /// <summary>
+    /// Обновляет карточку склада.
+    /// </summary>
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> UpdateAsync(int id, [FromBody] Warehouse input, CancellationToken cancellationToken)
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(WarehouseResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WarehouseResponse>> UpdateAsync(
+        int id,
+        [FromBody] UpdateWarehouseRequest request,
+        CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId(User);
-        await warehousePermissionService.EnsureWarehousePermissionAsync(
-            userId,
-            id,
-            WarehousePermission.WarehouseManage,
-            cancellationToken);
-
-        var item = await Db.Warehouses.FindAsync(id);
-        if (item is null)
-        {
-            return NotFound();
-        }
-
-        item.Name = input.Name;
-        item.Address = input.Address;
-        await Db.SaveChangesAsync();
-        return Ok(item);
+        return Ok(await warehousesApiService.UpdateAsync(userId, id, request, cancellationToken));
     }
 
+    /// <summary>
+    /// Удаляет склад.
+    /// </summary>
     [HttpDelete("{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
     {
         var userId = currentUserService.GetRequiredUserId(User);
-        await warehousePermissionService.EnsureWarehousePermissionAsync(
-            userId,
-            id,
-            WarehousePermission.WarehouseManage,
-            cancellationToken);
-
-        return await DeleteEntityAsync<Warehouse>(id);
+        await warehousesApiService.DeleteAsync(userId, id, cancellationToken);
+        return NoContent();
     }
 }

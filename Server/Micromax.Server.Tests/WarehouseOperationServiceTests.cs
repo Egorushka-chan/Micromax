@@ -1,3 +1,4 @@
+using MicroMax.Server.Api.Operations;
 using MicroMax.Server.Data;
 using MicroMax.Server.Models;
 using MicroMax.Server.Services;
@@ -58,7 +59,7 @@ public sealed class WarehouseOperationServiceTests
         SeedSingleBalance(db, quantity: 8m);
         var service = new WarehouseOperationService(db);
 
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var error = await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>
             service.AdjustAsync(new AdjustRequest(1, 1, 8m, null), 7));
 
         Assert.Equal("Текущий остаток уже соответствует указанному значению.", error.Message);
