@@ -101,6 +101,7 @@ builder.Services.AddScoped<WarehouseUsersApiService>();
 builder.Services.AddScoped<ZonesApiService>();
 builder.Services.AddScoped<CellsApiService>();
 builder.Services.AddScoped<ProductsApiService>();
+builder.Services.AddScoped<BarcodesApiService>();
 builder.Services.AddScoped<StocksApiService>();
 builder.Services.AddScoped<OperationsApiService>();
 builder.Services.AddScoped<RolesApiService>();

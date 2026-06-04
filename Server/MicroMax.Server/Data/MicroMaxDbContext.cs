@@ -16,6 +16,7 @@ public sealed class MicroMaxDbContext(DbContextOptions<MicroMaxDbContext> option
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<WarehouseOperation> WarehouseOperations => Set<WarehouseOperation>();
     public DbSet<OperationLog> OperationLogs => Set<OperationLog>();
+    public DbSet<Barcode> Barcodes => Set<Barcode>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,10 +28,24 @@ public sealed class MicroMaxDbContext(DbContextOptions<MicroMaxDbContext> option
         modelBuilder.Entity<Role>().HasIndex(x => x.Code).IsUnique();
         modelBuilder.Entity<WarehouseUser>().HasIndex(x => new { x.WarehouseId, x.UserId }).IsUnique();
         modelBuilder.Entity<RefreshToken>().HasIndex(x => x.TokenHash).IsUnique();
+        modelBuilder.Entity<Barcode>().HasIndex(x => x.Value);
+        modelBuilder.Entity<Barcode>().HasIndex(x => new { x.EntityType, x.EntityId });
+        modelBuilder.Entity<Barcode>()
+            .HasIndex(x => x.Value)
+            .HasDatabaseName("IX_Barcodes_ActiveValue")
+            .HasFilter("\"IsActive\" = TRUE")
+            .IsUnique();
+        modelBuilder.Entity<Barcode>()
+            .HasIndex(x => new { x.EntityType, x.EntityId })
+            .HasDatabaseName("IX_Barcodes_ActivePrimary")
+            .HasFilter("\"IsActive\" = TRUE AND \"IsPrimary\" = TRUE")
+            .IsUnique();
 
         modelBuilder.Entity<Product>().Property(x => x.MinQuantity).HasPrecision(18, 3);
         modelBuilder.Entity<StockBalance>().Property(x => x.Quantity).HasPrecision(18, 3);
         modelBuilder.Entity<WarehouseOperation>().Property(x => x.Quantity).HasPrecision(18, 3);
+        modelBuilder.Entity<Barcode>().Property(x => x.Symbology).HasConversion<string>();
+        modelBuilder.Entity<Barcode>().Property(x => x.EntityType).HasConversion<string>();
 
         modelBuilder.Entity<WarehouseOperation>()
             .HasOne(x => x.SourceCell)
@@ -42,6 +57,12 @@ public sealed class MicroMaxDbContext(DbContextOptions<MicroMaxDbContext> option
             .HasOne(x => x.TargetCell)
             .WithMany(x => x.TargetOperations)
             .HasForeignKey(x => x.TargetCellId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Barcode>()
+            .HasOne(x => x.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(x => x.CreatedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Role>().HasData(

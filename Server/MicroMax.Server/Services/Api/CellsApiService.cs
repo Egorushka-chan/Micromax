@@ -97,6 +97,16 @@ public sealed class CellsApiService(
             WarehousePermission.WarehouseManage,
             cancellationToken);
 
+        var activeBarcodes = await db.Barcodes
+            .Where(x => x.IsActive && x.EntityType == BarcodeEntityType.Cell && x.EntityId == cellId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var barcode in activeBarcodes)
+        {
+            barcode.IsActive = false;
+            barcode.IsPrimary = false;
+        }
+
         db.StorageCells.Remove(cell);
         await db.SaveChangesAsync(cancellationToken);
     }

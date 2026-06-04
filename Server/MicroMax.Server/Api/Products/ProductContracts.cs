@@ -1,3 +1,5 @@
+using MicroMax.Server.Api.Barcodes;
+
 namespace MicroMax.Server.Api.Products;
 
 public sealed record ProductResponse(
@@ -11,7 +13,8 @@ public sealed record CreateProductRequest(
     string Sku,
     string Name,
     string Unit,
-    decimal MinQuantity);
+    decimal MinQuantity,
+    BarcodeDraftRequest? InitialBarcode = null);
 
 public sealed record UpdateProductRequest(
     string Sku,

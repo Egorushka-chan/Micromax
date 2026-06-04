@@ -1,3 +1,4 @@
+using MicroMax.Server.Api.Barcodes;
 using MicroMax.Server.Api.Products;
 using MicroMax.Server.Infrastructure.Api;
 using MicroMax.Server.Models;
@@ -8,7 +9,8 @@ namespace MicroMax.Server.Services.Api;
 
 public sealed class ProductsApiService(
     Data.MicroMaxDbContext db,
-    WarehousePermissionService warehousePermissionService)
+    WarehousePermissionService warehousePermissionService,
+    BarcodesApiService barcodesApiService)
 {
     public async Task<IReadOnlyList<ProductResponse>> GetAsync(int userId, CancellationToken cancellationToken = default)
     {
@@ -63,8 +65,26 @@ public sealed class ProductsApiService(
             MinQuantity = request.MinQuantity
         };
 
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+
         db.Products.Add(product);
         await db.SaveChangesAsync(cancellationToken);
+
+        if (request.InitialBarcode is not null)
+        {
+            await barcodesApiService.CreateProductBarcodeAsync(
+                userId,
+                product.Id,
+                request.InitialBarcode,
+                cancellationToken);
+        }
+
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
 
         return ToResponse(product);
     }
@@ -101,6 +121,16 @@ public sealed class ProductsApiService(
 
         var product = await db.Products.FindAsync([productId], cancellationToken)
             ?? throw new ApiNotFoundException("Номенклатура не найдена.");
+
+        var activeBarcodes = await db.Barcodes
+            .Where(x => x.IsActive && x.EntityType == BarcodeEntityType.Product && x.EntityId == productId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var barcode in activeBarcodes)
+        {
+            barcode.IsActive = false;
+            barcode.IsPrimary = false;
+        }
 
         db.Products.Remove(product);
         await db.SaveChangesAsync(cancellationToken);

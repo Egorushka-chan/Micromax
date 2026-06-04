@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.bezborodov.micromax.data.BarcodeDraftDto
 import com.bezborodov.micromax.data.CreateProductRequest
 import com.bezborodov.micromax.data.MicroMaxApiClient
 import com.bezborodov.micromax.data.UnauthorizedException
@@ -80,7 +81,9 @@ class WarehouseViewModel(
         unit: String,
         minQuantity: Double,
         initialCellId: Int?,
-        initialQuantity: Double
+        initialQuantity: Double,
+        barcodeValue: String?,
+        barcodeSymbology: String?
     ) {
         if (sku.isBlank() || name.isBlank() || unit.isBlank()) {
             uiState = uiState.copy(message = "Заполните SKU, название и единицу измерения.")
@@ -104,7 +107,16 @@ class WarehouseViewModel(
                     sku = sku.trim(),
                     name = name.trim(),
                     unit = unit.trim(),
-                    minQuantity = minQuantity
+                    minQuantity = minQuantity,
+                    initialBarcode = barcodeValue
+                        ?.trim()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { normalizedValue ->
+                            BarcodeDraftDto(
+                                value = normalizedValue,
+                                symbology = barcodeSymbology?.trim()?.ifEmpty { null }
+                            )
+                        }
                 )
             )
             if (initialQuantity > 0.0 && initialCellId != null) {

@@ -42,4 +42,14 @@ data class SessionUiState(
 
     val canManageSelectedWarehouseUsers: Boolean
         get() = selectedWarehouse?.roleCode == RoleAdmin
+
+    fun canManageWarehouse(warehouseId: Int?): Boolean {
+        if (warehouseId == null) {
+            return false
+        }
+
+        return currentUser?.warehouses?.any {
+            it.warehouseId == warehouseId && it.roleCode == RoleAdmin
+        } == true
+    }
 }

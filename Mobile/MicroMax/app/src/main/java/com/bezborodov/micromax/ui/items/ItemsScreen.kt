@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,7 +20,9 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,10 +35,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,18 +50,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.bezborodov.micromax.data.BarcodeDto
 import com.bezborodov.micromax.data.CellDto
+import com.bezborodov.micromax.data.MicroMaxApiClient
 import com.bezborodov.micromax.data.ProductDto
 import com.bezborodov.micromax.data.StockDto
+import com.bezborodov.micromax.data.UnauthorizedException
+import com.bezborodov.micromax.ui.barcodes.BarcodeEditorDialog
+import com.bezborodov.micromax.ui.barcodes.BarcodeSection
 import com.bezborodov.micromax.ui.components.AccentDark
 import com.bezborodov.micromax.ui.components.EmptyStateText
 import com.bezborodov.micromax.ui.components.PlainInfoRow
 import com.bezborodov.micromax.ui.components.SectionCard
 import com.bezborodov.micromax.ui.components.TextMuted
 import com.bezborodov.micromax.ui.home.HomeUiState
+import com.bezborodov.micromax.ui.scanner.ScannedBarcode
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToLong
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class ItemsStartDestination {
     List,
@@ -90,7 +102,12 @@ fun ItemsScreen(
     startDestination: ItemsStartDestination,
     canCreateProducts: Boolean,
     canExecuteOperations: Boolean,
-    onCreateProduct: (String, String, String, Double, Int?, Double) -> Unit,
+    apiClient: MicroMaxApiClient,
+    onSessionExpired: () -> Unit,
+    requestedProductId: Int?,
+    onRequestedProductConsumed: () -> Unit,
+    onOpenScanner: (String, (ScannedBarcode) -> Unit) -> Unit,
+    onCreateProduct: (String, String, String, Double, Int?, Double, String?, String?) -> Unit,
     onOpenOperations: () -> Unit
 ) {
     val effectiveStartDestination = if (canCreateProducts) {
@@ -99,7 +116,6 @@ fun ItemsScreen(
         ItemsStartDestination.List
     }
 
-    // Стартовый маршрут выбираем сразу, без промежуточного кадра со списком.
     var destination by rememberSaveable(effectiveStartDestination) {
         mutableStateOf(
             if (effectiveStartDestination == ItemsStartDestination.Add) {
@@ -112,6 +128,15 @@ fun ItemsScreen(
     var selectedProductId by rememberSaveable(effectiveStartDestination) { mutableStateOf(-1) }
     var addFormVersion by rememberSaveable { mutableStateOf(0) }
     var awaitingCreateResult by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(requestedProductId, state.snapshot.products) {
+        val targetId = requestedProductId ?: return@LaunchedEffect
+        if (state.snapshot.products.any { it.id == targetId }) {
+            selectedProductId = targetId
+            destination = ItemsDestination.Details.name
+            onRequestedProductConsumed()
+        }
+    }
 
     if (awaitingCreateResult && !isSubmitting) {
         if (state.message == "Товар добавлен") {
@@ -158,7 +183,11 @@ fun ItemsScreen(
                 ProductDetailsScreen(
                     product = selectedProduct,
                     stocks = state.snapshot.stocks.filter { it.sku == selectedProduct.sku && it.quantity > 0.0 },
+                    apiClient = apiClient,
+                    onSessionExpired = onSessionExpired,
+                    canManageBarcodes = canCreateProducts,
                     canExecuteOperations = canExecuteOperations,
+                    onOpenScanner = onOpenScanner,
                     onBack = { destination = ItemsDestination.List.name },
                     onOpenOperations = onOpenOperations
                 )
@@ -170,7 +199,7 @@ fun ItemsScreen(
                 ProductsListScreen(
                     products = state.snapshot.products,
                     stocks = state.snapshot.stocks,
-                    canCreateProducts = canCreateProducts,
+                    canCreateProducts = false,
                     onOpenProduct = {
                         selectedProductId = it.id
                         destination = ItemsDestination.Details.name
@@ -183,9 +212,19 @@ fun ItemsScreen(
                     cells = state.snapshot.cells,
                     isSubmitting = isSubmitting,
                     onBack = { destination = ItemsDestination.List.name },
-                    onSubmit = { sku, name, unit, minQuantity, cellId, quantity ->
+                    onOpenScanner = onOpenScanner,
+                    onSubmit = { sku, name, unit, minQuantity, cellId, quantity, barcodeValue, barcodeSymbology ->
                         awaitingCreateResult = true
-                        onCreateProduct(sku, name, unit, minQuantity, cellId, quantity)
+                        onCreateProduct(
+                            sku,
+                            name,
+                            unit,
+                            minQuantity,
+                            cellId,
+                            quantity,
+                            barcodeValue,
+                            barcodeSymbology
+                        )
                     }
                 )
             }
@@ -360,20 +399,23 @@ private fun ProductListRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .height(94.dp)
+                .background(Color.White),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Spacer(modifier = Modifier.width(16.dp))
+
             Box(
                 modifier = Modifier
-                    .size(58.dp)
+                    .width(58.dp)
+                    .height(58.dp)
                     .background(Color(0xFFF1F4FF), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Outlined.Inventory2,
                     contentDescription = null,
-                    tint = AccentDark,
-                    modifier = Modifier.size(28.dp)
+                    tint = AccentDark
                 )
             }
 
@@ -386,13 +428,11 @@ private fun ProductListRow(
                     color = Color(0xFF1D1D1D),
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = summary.product.sku,
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextMuted
                 )
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = if (summary.locationCount > 0) {
                         "${summary.locationCount} ячеек · ${summary.totalQuantity.formatQuantity()} ${summary.product.unit}"
@@ -403,8 +443,6 @@ private fun ProductListRow(
                     color = if (summary.lowStock && summary.totalQuantity > 0.0) Color(0xFFD35C46) else TextMuted
                 )
             }
-
-            Spacer(modifier = Modifier.width(10.dp))
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
@@ -419,6 +457,8 @@ private fun ProductListRow(
                     color = TextMuted
                 )
             }
+
+            Spacer(modifier = Modifier.width(16.dp))
         }
     }
 }
@@ -427,11 +467,47 @@ private fun ProductListRow(
 private fun ProductDetailsScreen(
     product: ProductDto,
     stocks: List<StockDto>,
+    apiClient: MicroMaxApiClient,
+    onSessionExpired: () -> Unit,
+    canManageBarcodes: Boolean,
     canExecuteOperations: Boolean,
+    onOpenScanner: (String, (ScannedBarcode) -> Unit) -> Unit,
     onBack: () -> Unit,
     onOpenOperations: () -> Unit
 ) {
     val totalQuantity = stocks.sumOf { it.quantity }
+    val scope = rememberCoroutineScope()
+
+    var barcodes by remember(product.id) { mutableStateOf<List<BarcodeDto>>(emptyList()) }
+    var barcodesLoading by remember(product.id) { mutableStateOf(true) }
+    var barcodesMessage by remember(product.id) { mutableStateOf<String?>(null) }
+    var showAddBarcodeDialog by remember(product.id) { mutableStateOf(false) }
+    var barcodeToDeactivate by remember(product.id) { mutableStateOf<BarcodeDto?>(null) }
+
+    suspend fun loadBarcodes() {
+        barcodesLoading = true
+        val result = runCatching {
+            withContext(Dispatchers.IO) { apiClient.getProductBarcodes(product.id) }
+        }
+        result.fold(
+            onSuccess = {
+                barcodes = it
+                barcodesLoading = false
+            },
+            onFailure = { error ->
+                barcodesLoading = false
+                if (error is UnauthorizedException) {
+                    onSessionExpired()
+                } else {
+                    barcodesMessage = error.message ?: "Не удалось загрузить штрих-коды."
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(product.id) {
+        loadBarcodes()
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -454,20 +530,22 @@ private fun ProductDetailsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(18.dp),
+                        .height(124.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Spacer(modifier = Modifier.width(18.dp))
+
                     Box(
                         modifier = Modifier
-                            .size(88.dp)
+                            .width(88.dp)
+                            .height(88.dp)
                             .background(Color(0xFFF1F4FF), RoundedCornerShape(16.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Inventory2,
                             contentDescription = null,
-                            tint = AccentDark,
-                            modifier = Modifier.size(40.dp)
+                            tint = AccentDark
                         )
                     }
 
@@ -486,6 +564,8 @@ private fun ProductDetailsScreen(
                             color = TextMuted
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(18.dp))
                 }
             }
         }
@@ -506,6 +586,23 @@ private fun ProductDetailsScreen(
         }
 
         item {
+            BarcodeSection(
+                barcodes = barcodes,
+                isLoading = barcodesLoading,
+                message = barcodesMessage,
+                canManageBarcodes = canManageBarcodes,
+                onAddBarcode = {
+                    barcodesMessage = null
+                    showAddBarcodeDialog = true
+                },
+                onDeactivateBarcode = {
+                    barcodesMessage = null
+                    barcodeToDeactivate = it
+                }
+            )
+        }
+
+        item {
             SectionCard(title = "Остатки по ячейкам") {
                 if (stocks.isEmpty()) {
                     EmptyStateText("Товар пока не размещён ни в одной ячейке.")
@@ -521,8 +618,7 @@ private fun ProductDetailsScreen(
             Text(
                 text = "Изменение остатков выполняется только через складские операции.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextMuted,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                color = TextMuted
             )
         }
 
@@ -541,6 +637,79 @@ private fun ProductDetailsScreen(
 
         item { Spacer(modifier = Modifier.height(6.dp)) }
     }
+
+    if (showAddBarcodeDialog) {
+        BarcodeEditorDialog(
+            title = "Добавить штрих-код товара",
+            confirmButtonText = "Сохранить",
+            onDismiss = { showAddBarcodeDialog = false },
+            onOpenScanner = { callback ->
+                onOpenScanner("Сканирование штрих-кода товара", callback)
+            },
+            onConfirm = { request ->
+                scope.launch {
+                    barcodesLoading = true
+                    val result = runCatching {
+                        withContext(Dispatchers.IO) {
+                            apiClient.addProductBarcode(product.id, request)
+                            apiClient.getProductBarcodes(product.id)
+                        }
+                    }
+                    result.fold(
+                        onSuccess = {
+                            barcodes = it
+                            barcodesLoading = false
+                            barcodesMessage = "Штрих-код привязан к товару."
+                            showAddBarcodeDialog = false
+                        },
+                        onFailure = { error ->
+                            barcodesLoading = false
+                            if (error is UnauthorizedException) {
+                                onSessionExpired()
+                            } else {
+                                barcodesMessage = error.message ?: "Не удалось привязать штрих-код."
+                            }
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    if (barcodeToDeactivate != null) {
+        BarcodeDeactivateDialog(
+            value = barcodeToDeactivate?.value.orEmpty(),
+            onDismiss = { barcodeToDeactivate = null },
+            onConfirm = {
+                val currentBarcode = barcodeToDeactivate ?: return@BarcodeDeactivateDialog
+                scope.launch {
+                    barcodesLoading = true
+                    val result = runCatching {
+                        withContext(Dispatchers.IO) {
+                            apiClient.deactivateBarcode(currentBarcode.id)
+                            apiClient.getProductBarcodes(product.id)
+                        }
+                    }
+                    result.fold(
+                        onSuccess = {
+                            barcodes = it
+                            barcodesLoading = false
+                            barcodesMessage = "Штрих-код деактивирован."
+                            barcodeToDeactivate = null
+                        },
+                        onFailure = { error ->
+                            barcodesLoading = false
+                            if (error is UnauthorizedException) {
+                                onSessionExpired()
+                            } else {
+                                barcodesMessage = error.message ?: "Не удалось деактивировать штрих-код."
+                            }
+                        }
+                    )
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -548,7 +717,7 @@ private fun StockLocationRow(stock: StockDto) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .height(58.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -578,13 +747,16 @@ private fun AddProductScreen(
     cells: List<CellDto>,
     isSubmitting: Boolean,
     onBack: () -> Unit,
-    onSubmit: (String, String, String, Double, Int?, Double) -> Unit
+    onOpenScanner: (String, (ScannedBarcode) -> Unit) -> Unit,
+    onSubmit: (String, String, String, Double, Int?, Double, String?, String?) -> Unit
 ) {
     var sku by rememberSaveable(formVersion) { mutableStateOf("") }
     var name by rememberSaveable(formVersion) { mutableStateOf("") }
     var unit by rememberSaveable(formVersion) { mutableStateOf("шт") }
     var minQuantity by rememberSaveable(formVersion) { mutableStateOf("0") }
     var initialQuantity by rememberSaveable(formVersion) { mutableStateOf("0") }
+    var barcodeValue by rememberSaveable(formVersion) { mutableStateOf("") }
+    var barcodeSymbology by rememberSaveable(formVersion) { mutableStateOf("UNKNOWN") }
     var selectedCellId by rememberSaveable(formVersion) { mutableStateOf<Int?>(null) }
     var localMessage by rememberSaveable(formVersion) { mutableStateOf<String?>(null) }
 
@@ -607,22 +779,21 @@ private fun AddProductScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 22.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    Spacer(modifier = Modifier.height(22.dp))
                     Box(
                         modifier = Modifier
-                            .size(96.dp)
+                            .width(96.dp)
+                            .height(96.dp)
                             .background(Color(0xFFF1F4FF), RoundedCornerShape(18.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Inventory2,
                             contentDescription = null,
-                            tint = AccentDark,
-                            modifier = Modifier.size(44.dp)
+                            tint = AccentDark
                         )
                     }
                     Spacer(modifier = Modifier.height(14.dp))
@@ -633,11 +804,12 @@ private fun AddProductScreen(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Заполните основные данные и при необходимости задайте стартовый остаток.",
+                        text = "Заполните основные данные и при необходимости задайте стартовый остаток и внешний штрих-код.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextMuted,
                         textAlign = TextAlign.Center
                     )
+                    Spacer(modifier = Modifier.height(22.dp))
                 }
             }
         }
@@ -647,8 +819,7 @@ private fun AddProductScreen(
                 Text(
                     text = localMessage.orEmpty(),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFFD35C46),
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                    color = Color(0xFFD35C46)
                 )
             }
         }
@@ -657,14 +828,20 @@ private fun AddProductScreen(
             SectionCard(title = "Основные данные") {
                 OutlinedTextField(
                     value = sku,
-                    onValueChange = { sku = it },
+                    onValueChange = {
+                        sku = it
+                        localMessage = null
+                    },
                     label = { Text("SKU") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = {
+                        name = it
+                        localMessage = null
+                    },
                     label = { Text("Название") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -676,17 +853,71 @@ private fun AddProductScreen(
             SectionCard(title = "Атрибуты") {
                 OutlinedTextField(
                     value = unit,
-                    onValueChange = { unit = it },
+                    onValueChange = {
+                        unit = it
+                        localMessage = null
+                    },
                     label = { Text("Единица измерения") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
                 OutlinedTextField(
                     value = minQuantity,
-                    onValueChange = { minQuantity = it },
+                    onValueChange = {
+                        minQuantity = it
+                        localMessage = null
+                    },
                     label = { Text("Минимальный остаток") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
+                )
+            }
+        }
+
+        item {
+            SectionCard(title = "Штрих-код") {
+                OutlinedTextField(
+                    value = barcodeValue,
+                    onValueChange = {
+                        barcodeValue = it
+                        if (it.isBlank()) {
+                            barcodeSymbology = "UNKNOWN"
+                        }
+                        localMessage = null
+                    },
+                    label = { Text("Значение штрих-кода") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = barcodeSymbology,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Симвология") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedButton(
+                    onClick = {
+                        onOpenScanner("Сканирование штрих-кода товара") { scannedBarcode ->
+                            barcodeValue = scannedBarcode.rawValue
+                            barcodeSymbology = scannedBarcode.symbology
+                            localMessage = null
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.QrCodeScanner,
+                        contentDescription = null
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Сканировать камерой")
+                }
+                Text(
+                    text = "Поле необязательное. Значение сохраняется как строка, вместе с символами # и ведущими нулями.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted
                 )
             }
         }
@@ -696,11 +927,17 @@ private fun AddProductScreen(
                 CellSelectorField(
                     cells = cells.sortedBy { it.code },
                     selectedCellId = selectedCellId,
-                    onCellSelected = { selectedCellId = it }
+                    onCellSelected = {
+                        selectedCellId = it
+                        localMessage = null
+                    }
                 )
                 OutlinedTextField(
                     value = initialQuantity,
-                    onValueChange = { initialQuantity = it },
+                    onValueChange = {
+                        initialQuantity = it
+                        localMessage = null
+                    },
                     label = { Text("Количество") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -718,6 +955,8 @@ private fun AddProductScreen(
                 onClick = {
                     val parsedMinQuantity = minQuantity.parseNumber()
                     val parsedInitialQuantity = initialQuantity.parseNumber()
+                    val normalizedBarcodeValue = barcodeValue.trim()
+
                     localMessage = when {
                         sku.isBlank() -> "Укажите SKU."
                         name.isBlank() -> "Укажите название товара."
@@ -737,7 +976,9 @@ private fun AddProductScreen(
                             unit.trim(),
                             parsedMinQuantity ?: 0.0,
                             selectedCellId,
-                            parsedInitialQuantity ?: 0.0
+                            parsedInitialQuantity ?: 0.0,
+                            normalizedBarcodeValue.ifEmpty { null },
+                            if (normalizedBarcodeValue.isEmpty()) null else barcodeSymbology
                         )
                     }
                 },
@@ -774,22 +1015,21 @@ private fun CellSelectorField(
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.ArrowForwardIos,
                     contentDescription = null,
-                    tint = TextMuted,
-                    modifier = Modifier.size(16.dp)
+                    tint = TextMuted
                 )
             }
         )
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clickable { expanded = true }
         )
+
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .background(Color.White)
+            modifier = Modifier.fillMaxWidth(0.92f)
         ) {
             DropdownMenuItem(
                 text = { Text("Не указывать") },
@@ -836,6 +1076,31 @@ private fun ScreenHeader(
         )
         Spacer(modifier = Modifier.width(48.dp))
     }
+}
+
+@Composable
+private fun BarcodeDeactivateDialog(
+    value: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Деактивация штрих-кода") },
+        text = {
+            Text("Штрих-код \"$value\" будет отключён. Эту запись можно будет сохранить в истории, но она перестанет участвовать в поиске.")
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("Деактивировать")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
 }
 
 private fun Double.formatQuantity(): String {

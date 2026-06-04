@@ -20,7 +20,10 @@ data class ProductDto(
 data class CellDto(
     val id: Int,
     val code: String,
-    val name: String
+    val name: String,
+    val warehouseId: Int,
+    val zoneCode: String,
+    val warehouseName: String
 )
 
 data class StockDto(
@@ -61,7 +64,33 @@ data class CreateProductRequest(
     val sku: String,
     val name: String,
     val unit: String,
-    val minQuantity: Double
+    val minQuantity: Double,
+    val initialBarcode: BarcodeDraftDto? = null
+)
+
+data class BarcodeDraftDto(
+    val value: String,
+    val symbology: String? = null,
+    val isPrimary: Boolean? = null
+)
+
+data class BarcodeDto(
+    val id: Int,
+    val value: String,
+    val symbology: String,
+    val isPrimary: Boolean,
+    val isActive: Boolean,
+    val createdAt: String,
+    val createdByUserId: Int
+)
+
+data class BarcodeResolveDto(
+    val found: Boolean,
+    val value: String,
+    val entityType: String?,
+    val entityId: Int?,
+    val title: String?,
+    val subtitle: String?
 )
 
 data class WarehouseSnapshot(
@@ -251,7 +280,10 @@ class MicroMaxApiClient(
                 CellDto(
                     id = it.getInt("id"),
                     code = it.optString("code"),
-                    name = it.optString("name")
+                    name = it.optString("name"),
+                    warehouseId = it.optInt("warehouseId"),
+                    zoneCode = it.optString("zoneCode"),
+                    warehouseName = it.optString("warehouseName")
                 )
             },
             stocks = getArray("/api/stocks").mapObjects {
@@ -325,6 +357,10 @@ class MicroMaxApiClient(
             put("name", request.name)
             put("unit", request.unit)
             put("minQuantity", request.minQuantity)
+            put(
+                "initialBarcode",
+                request.initialBarcode?.toJsonObject() ?: JSONObject.NULL
+            )
         })
 
         return ProductDto(
@@ -333,6 +369,47 @@ class MicroMaxApiClient(
             name = response.optString("name"),
             unit = response.optString("unit"),
             minQuantity = response.optDouble("minQuantity")
+        )
+    }
+
+    fun resolveBarcode(value: String): BarcodeResolveDto {
+        val response = getObject("/api/barcodes/resolve?value=${encodeQueryValue(value)}")
+        return BarcodeResolveDto(
+            found = response.optBoolean("found"),
+            value = response.optString("value"),
+            entityType = response.optNullableString("entityType"),
+            entityId = response.optNullableInt("entityId"),
+            title = response.optNullableString("title"),
+            subtitle = response.optNullableString("subtitle")
+        )
+    }
+
+    fun getProductBarcodes(productId: Int): List<BarcodeDto> {
+        return getArray("/api/products/$productId/barcodes").mapObjects { barcode ->
+            barcode.toBarcodeDto()
+        }
+    }
+
+    fun addProductBarcode(productId: Int, request: BarcodeDraftDto): BarcodeDto {
+        val response = postJson("/api/products/$productId/barcodes", request.toJsonObject())
+        return response.toBarcodeDto()
+    }
+
+    fun getCellBarcodes(cellId: Int): List<BarcodeDto> {
+        return getArray("/api/cells/$cellId/barcodes").mapObjects { barcode ->
+            barcode.toBarcodeDto()
+        }
+    }
+
+    fun addCellBarcode(cellId: Int, request: BarcodeDraftDto): BarcodeDto {
+        val response = postJson("/api/cells/$cellId/barcodes", request.toJsonObject())
+        return response.toBarcodeDto()
+    }
+
+    fun deactivateBarcode(barcodeId: Int) {
+        sendWithoutJsonResponse(
+            path = "/api/barcodes/$barcodeId",
+            method = "DELETE"
         )
     }
 
@@ -410,6 +487,10 @@ class MicroMaxApiClient(
     private fun buildComment(comment: String?): String {
         val userComment = comment?.trim().orEmpty()
         return if (userComment.isEmpty()) MobileComment else userComment
+    }
+
+    private fun encodeQueryValue(value: String): String {
+        return java.net.URLEncoder.encode(value, Charsets.UTF_8)
     }
 
     private fun getArray(
@@ -616,6 +697,26 @@ class MicroMaxApiClient(
                 .ifBlank { fallback }
         }.getOrDefault(response.body.ifBlank { fallback })
     }
+}
+
+private fun BarcodeDraftDto.toJsonObject(): JSONObject {
+    return JSONObject().apply {
+        put("value", value)
+        put("symbology", symbology ?: JSONObject.NULL)
+        put("isPrimary", isPrimary ?: JSONObject.NULL)
+    }
+}
+
+private fun JSONObject.toBarcodeDto(): BarcodeDto {
+    return BarcodeDto(
+        id = getInt("id"),
+        value = optString("value"),
+        symbology = optString("symbology"),
+        isPrimary = optBoolean("isPrimary"),
+        isActive = optBoolean("isActive"),
+        createdAt = optString("createdAt"),
+        createdByUserId = optInt("createdByUserId")
+    )
 }
 
 private fun JSONArray.mapStrings(): List<String> {

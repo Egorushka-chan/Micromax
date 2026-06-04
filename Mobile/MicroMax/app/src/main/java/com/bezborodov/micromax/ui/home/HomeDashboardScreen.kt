@@ -26,7 +26,8 @@ fun HomeDashboardScreen(
     onOpenAddItem: () -> Unit,
     onOpenCells: () -> Unit,
     onOpenOperation: (OperationType) -> Unit,
-    onOpenAssistant: () -> Unit
+    onOpenAssistant: () -> Unit,
+    onOpenBarcodeScanner: () -> Unit
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -50,9 +51,9 @@ fun HomeDashboardScreen(
 
         item {
             SearchBarBlock(
-                placeholder = "Поиск товара",
+                placeholder = "Поиск товара или ячейки",
                 onSearchClick = onOpenItems,
-                onScannerClick = onOpenAssistant
+                onScannerClick = onOpenBarcodeScanner
             )
         }
 

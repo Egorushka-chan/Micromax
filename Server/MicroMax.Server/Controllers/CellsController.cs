@@ -1,3 +1,4 @@
+using MicroMax.Server.Api.Barcodes;
 using MicroMax.Server.Api.Cells;
 using MicroMax.Server.Services.Api;
 using MicroMax.Server.Services.Auth;
@@ -13,6 +14,7 @@ namespace MicroMax.Server.Controllers;
 [Route("api/cells")]
 [Produces("application/json", "application/problem+json")]
 public sealed class CellsController(
+    BarcodesApiService barcodesApiService,
     CellsApiService cellsApiService,
     CurrentUserService currentUserService) : MicroMaxControllerBase
 {
@@ -25,6 +27,42 @@ public sealed class CellsController(
     {
         var userId = currentUserService.GetRequiredUserId(User);
         return Ok(await cellsApiService.GetAsync(userId, cancellationToken));
+    }
+
+    /// <summary>
+    /// Возвращает активные штрих-коды ячейки хранения.
+    /// </summary>
+    [HttpGet("{cellId:int}/barcodes")]
+    [ProducesResponseType(typeof(IReadOnlyList<BarcodeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<BarcodeResponse>>> GetBarcodesAsync(
+        int cellId,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await barcodesApiService.GetCellBarcodesAsync(userId, cellId, cancellationToken));
+    }
+
+    /// <summary>
+    /// Привязывает новый штрих-код к ячейке хранения.
+    /// </summary>
+    [HttpPost("{cellId:int}/barcodes")]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(BarcodeResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BarcodeResponse>> CreateBarcodeAsync(
+        int cellId,
+        [FromBody] BarcodeDraftRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        var barcode = await barcodesApiService.CreateCellBarcodeAsync(userId, cellId, request, cancellationToken);
+        return CreatedResource($"/api/barcodes/{barcode.Id}", barcode);
     }
 
     /// <summary>
