@@ -6,37 +6,37 @@ namespace MicroMax.Server.Services;
 
 public sealed class WarehouseOperationService(MicroMaxDbContext db)
 {
-    public Task<WarehouseOperation> ReceiveAsync(ReceiveRequest request) =>
+    public Task<WarehouseOperation> ReceiveAsync(ReceiveRequest request, int userId) =>
         ExecuteAsync(
             WarehouseOperationType.Receive,
             request.ProductId,
             null,
             request.TargetCellId,
             request.Quantity,
-            request.UserId,
+            userId,
             request.Comment);
 
-    public Task<WarehouseOperation> MoveAsync(MoveRequest request) =>
+    public Task<WarehouseOperation> MoveAsync(MoveRequest request, int userId) =>
         ExecuteAsync(
             WarehouseOperationType.Move,
             request.ProductId,
             request.SourceCellId,
             request.TargetCellId,
             request.Quantity,
-            request.UserId,
+            userId,
             request.Comment);
 
-    public Task<WarehouseOperation> WriteOffAsync(WriteOffRequest request) =>
+    public Task<WarehouseOperation> WriteOffAsync(WriteOffRequest request, int userId) =>
         ExecuteAsync(
             WarehouseOperationType.WriteOff,
             request.ProductId,
             request.SourceCellId,
             null,
             request.Quantity,
-            request.UserId,
+            userId,
             request.Comment);
 
-    public async Task<WarehouseOperation> AdjustAsync(AdjustRequest request)
+    public async Task<WarehouseOperation> AdjustAsync(AdjustRequest request, int userId)
     {
         if (request.TargetQuantity < 0)
         {
@@ -62,9 +62,10 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
         var operation = new WarehouseOperation
         {
             Type = WarehouseOperationType.Adjust,
+            WarehouseId = await GetWarehouseIdFromCellsAsync(null, request.TargetCellId),
             ProductId = request.ProductId,
             TargetCellId = request.TargetCellId,
-            AppUserId = request.UserId,
+            AppUserId = userId,
             Quantity = adjustmentQuantity,
             Comment = BuildAdjustComment(request.Comment, currentQuantity, request.TargetQuantity),
             CreatedAt = DateTimeOffset.UtcNow
@@ -90,7 +91,7 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
         int? sourceCellId,
         int? targetCellId,
         decimal quantity,
-        int? userId,
+        int userId,
         string? comment)
     {
         if (quantity <= 0)
@@ -132,6 +133,7 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
         var operation = new WarehouseOperation
         {
             Type = type,
+            WarehouseId = await GetWarehouseIdFromCellsAsync(sourceCellId, targetCellId),
             ProductId = productId,
             SourceCellId = sourceCellId,
             TargetCellId = targetCellId,
@@ -196,6 +198,32 @@ public sealed class WarehouseOperationService(MicroMaxDbContext db)
         {
             throw new InvalidOperationException(errorMessage);
         }
+    }
+
+    private async Task<int> GetWarehouseIdFromCellsAsync(int? sourceCellId, int? targetCellId)
+    {
+        var targetWarehouseId = targetCellId is null
+            ? (int?)null
+            : await db.StorageCells
+                .Where(x => x.Id == targetCellId.Value)
+                .Select(x => x.StorageZone!.WarehouseId)
+                .FirstAsync();
+        var sourceWarehouseId = sourceCellId is null
+            ? (int?)null
+            : await db.StorageCells
+                .Where(x => x.Id == sourceCellId.Value)
+                .Select(x => x.StorageZone!.WarehouseId)
+                .FirstAsync();
+
+        var warehouseId = targetWarehouseId ?? sourceWarehouseId
+            ?? throw new InvalidOperationException("Не удалось определить склад для операции.");
+
+        if (targetWarehouseId is not null && sourceWarehouseId is not null && targetWarehouseId != sourceWarehouseId)
+        {
+            throw new InvalidOperationException("Складская операция должна выполняться в рамках одного склада.");
+        }
+
+        return warehouseId;
     }
 
     private static string BuildLogMessage(WarehouseOperationType type, decimal quantity) => type switch

@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.bezborodov.micromax.data.CreateProductRequest
 import com.bezborodov.micromax.data.MicroMaxApiClient
+import com.bezborodov.micromax.data.UnauthorizedException
 import com.bezborodov.micromax.data.WarehouseSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -133,10 +134,15 @@ class WarehouseViewModel(
                     )
                 },
                 onFailure = {
-                    uiState.copy(
-                        isAssistantLoading = false,
-                        message = it.message ?: "Ошибка ассистента"
-                    )
+                    unauthorizedOrErrorState(
+                        error = it,
+                        fallbackMessage = "Ошибка ассистента"
+                    ) { message ->
+                        uiState.copy(
+                            isAssistantLoading = false,
+                            message = message
+                        )
+                    }
                 }
             )
         }
@@ -177,12 +183,20 @@ class WarehouseViewModel(
                     )
                 },
                 onFailure = { error ->
-                    when (trigger) {
-                        RefreshTrigger.Polling -> uiState.copy(isLoading = false, message = null)
-                        else -> uiState.copy(
+                    if (error is UnauthorizedException) {
+                        uiState.copy(
                             isLoading = false,
-                            message = error.message ?: "Не удалось загрузить данные"
+                            requiresReauthentication = true,
+                            message = error.message
                         )
+                    } else {
+                        when (trigger) {
+                            RefreshTrigger.Polling -> uiState.copy(isLoading = false, message = null)
+                            else -> uiState.copy(
+                                isLoading = false,
+                                message = error.message ?: "Не удалось загрузить данные"
+                            )
+                        }
                     }
                 }
             )
@@ -219,10 +233,15 @@ class WarehouseViewModel(
                     )
                 },
                 onFailure = {
-                    uiState.copy(
-                        isOperationSubmitting = false,
-                        message = it.message ?: "Ошибка операции"
-                    )
+                    unauthorizedOrErrorState(
+                        error = it,
+                        fallbackMessage = "Ошибка операции"
+                    ) { message ->
+                        uiState.copy(
+                            isOperationSubmitting = false,
+                            message = message
+                        )
+                    }
                 }
             )
         }
@@ -235,6 +254,20 @@ class WarehouseViewModel(
 
     private suspend fun loadSnapshot(): WarehouseSnapshot {
         return withContext(Dispatchers.IO) { apiClient.loadSnapshot() }
+    }
+
+    private fun unauthorizedOrErrorState(
+        error: Throwable,
+        fallbackMessage: String,
+        buildState: (String) -> HomeUiState
+    ): HomeUiState {
+        if (error is UnauthorizedException) {
+            return buildState(error.message ?: fallbackMessage).copy(
+                requiresReauthentication = true
+            )
+        }
+
+        return buildState(error.message ?: fallbackMessage)
     }
 }
 

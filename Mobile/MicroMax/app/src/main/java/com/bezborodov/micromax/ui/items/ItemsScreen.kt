@@ -88,20 +88,28 @@ fun ItemsScreen(
     state: HomeUiState,
     isSubmitting: Boolean,
     startDestination: ItemsStartDestination,
+    canCreateProducts: Boolean,
+    canExecuteOperations: Boolean,
     onCreateProduct: (String, String, String, Double, Int?, Double) -> Unit,
     onOpenOperations: () -> Unit
 ) {
+    val effectiveStartDestination = if (canCreateProducts) {
+        startDestination
+    } else {
+        ItemsStartDestination.List
+    }
+
     // Стартовый маршрут выбираем сразу, без промежуточного кадра со списком.
-    var destination by rememberSaveable(startDestination) {
+    var destination by rememberSaveable(effectiveStartDestination) {
         mutableStateOf(
-            if (startDestination == ItemsStartDestination.Add) {
+            if (effectiveStartDestination == ItemsStartDestination.Add) {
                 ItemsDestination.Add.name
             } else {
                 ItemsDestination.List.name
             }
         )
     }
-    var selectedProductId by rememberSaveable(startDestination) { mutableStateOf(-1) }
+    var selectedProductId by rememberSaveable(effectiveStartDestination) { mutableStateOf(-1) }
     var addFormVersion by rememberSaveable { mutableStateOf(0) }
     var awaitingCreateResult by rememberSaveable { mutableStateOf(false) }
 
@@ -120,6 +128,7 @@ fun ItemsScreen(
         ItemsDestination.List -> ProductsListScreen(
             products = state.snapshot.products,
             stocks = state.snapshot.stocks,
+            canCreateProducts = canCreateProducts,
             onOpenProduct = {
                 selectedProductId = it.id
                 destination = ItemsDestination.Details.name
@@ -135,6 +144,7 @@ fun ItemsScreen(
                 ProductsListScreen(
                     products = state.snapshot.products,
                     stocks = state.snapshot.stocks,
+                    canCreateProducts = canCreateProducts,
                     onOpenProduct = {
                         selectedProductId = it.id
                         destination = ItemsDestination.Details.name
@@ -148,22 +158,38 @@ fun ItemsScreen(
                 ProductDetailsScreen(
                     product = selectedProduct,
                     stocks = state.snapshot.stocks.filter { it.sku == selectedProduct.sku && it.quantity > 0.0 },
+                    canExecuteOperations = canExecuteOperations,
                     onBack = { destination = ItemsDestination.List.name },
                     onOpenOperations = onOpenOperations
                 )
             }
         }
 
-        ItemsDestination.Add -> AddProductScreen(
-            formVersion = addFormVersion,
-            cells = state.snapshot.cells,
-            isSubmitting = isSubmitting,
-            onBack = { destination = ItemsDestination.List.name },
-            onSubmit = { sku, name, unit, minQuantity, cellId, quantity ->
-                awaitingCreateResult = true
-                onCreateProduct(sku, name, unit, minQuantity, cellId, quantity)
+        ItemsDestination.Add -> {
+            if (!canCreateProducts) {
+                ProductsListScreen(
+                    products = state.snapshot.products,
+                    stocks = state.snapshot.stocks,
+                    canCreateProducts = canCreateProducts,
+                    onOpenProduct = {
+                        selectedProductId = it.id
+                        destination = ItemsDestination.Details.name
+                    },
+                    onAddProduct = {}
+                )
+            } else {
+                AddProductScreen(
+                    formVersion = addFormVersion,
+                    cells = state.snapshot.cells,
+                    isSubmitting = isSubmitting,
+                    onBack = { destination = ItemsDestination.List.name },
+                    onSubmit = { sku, name, unit, minQuantity, cellId, quantity ->
+                        awaitingCreateResult = true
+                        onCreateProduct(sku, name, unit, minQuantity, cellId, quantity)
+                    }
+                )
             }
-        )
+        }
     }
 }
 
@@ -171,6 +197,7 @@ fun ItemsScreen(
 private fun ProductsListScreen(
     products: List<ProductDto>,
     stocks: List<StockDto>,
+    canCreateProducts: Boolean,
     onOpenProduct: (ProductDto) -> Unit,
     onAddProduct: () -> Unit
 ) {
@@ -229,12 +256,16 @@ private fun ProductsListScreen(
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center
                 )
-                IconButton(onClick = onAddProduct) {
-                    Icon(
-                        imageVector = Icons.Outlined.Add,
-                        contentDescription = "Добавить товар",
-                        tint = Color.Black
-                    )
+                if (canCreateProducts) {
+                    IconButton(onClick = onAddProduct) {
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = "Добавить товар",
+                            tint = Color.Black
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(48.dp))
                 }
             }
         }
@@ -396,6 +427,7 @@ private fun ProductListRow(
 private fun ProductDetailsScreen(
     product: ProductDto,
     stocks: List<StockDto>,
+    canExecuteOperations: Boolean,
     onBack: () -> Unit,
     onOpenOperations: () -> Unit
 ) {
@@ -494,14 +526,16 @@ private fun ProductDetailsScreen(
             )
         }
 
-        item {
-            Button(
-                onClick = onOpenOperations,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
-            ) {
-                Text("Открыть операции")
+        if (canExecuteOperations) {
+            item {
+                Button(
+                    onClick = onOpenOperations,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                ) {
+                    Text("Открыть операции")
+                }
             }
         }
 

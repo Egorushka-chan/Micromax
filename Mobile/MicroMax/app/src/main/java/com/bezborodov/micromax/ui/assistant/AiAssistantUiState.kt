@@ -17,7 +17,8 @@ data class AiAssistantUiState(
         "Покажи товары с нулевым остатком",
         "Покажи доступные команды"
     ),
-    val commandDefinitions: List<AiAssistantCommandDefinition> = emptyList()
+    val commandDefinitions: List<AiAssistantCommandDefinition> = emptyList(),
+    val requiresReauthentication: Boolean = false
 )
 
 @Immutable

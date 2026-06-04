@@ -19,6 +19,9 @@ import com.bezborodov.micromax.ui.operations.OperationType
 @Composable
 fun HomeDashboardScreen(
     state: HomeUiState,
+    warehouseName: String?,
+    canCreateProducts: Boolean,
+    canExecuteOperations: Boolean,
     onOpenItems: () -> Unit,
     onOpenAddItem: () -> Unit,
     onOpenCells: () -> Unit,
@@ -28,13 +31,13 @@ fun HomeDashboardScreen(
     LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Text(
-                text = "Главное окно",
+                text = warehouseName ?: "Главное окно",
                 style = MaterialTheme.typography.labelMedium,
                 color = TextSecondary
             )
         }
 
-        item { HeaderCompanyBlock(companyName = state.companyName) }
+        item { HeaderCompanyBlock(companyName = warehouseName ?: state.companyName) }
 
         item {
             DailyStatsCard(
@@ -55,14 +58,16 @@ fun HomeDashboardScreen(
 
         item {
             SectionCard(title = "Товары") {
-                ActionMenuRow(
-                    item = HomeMenuItem(
-                        "Добавить товар",
-                        "Завести новую номенклатуру",
-                        HomeMenuIcon.AddItem
-                    ),
-                    onClick = onOpenAddItem
-                )
+                if (canCreateProducts) {
+                    ActionMenuRow(
+                        item = HomeMenuItem(
+                            "Добавить товар",
+                            "Завести новую номенклатуру",
+                            HomeMenuIcon.AddItem
+                        ),
+                        onClick = onOpenAddItem
+                    )
+                }
                 ActionMenuRow(
                     item = HomeMenuItem(
                         "Просмотр ячеек",
@@ -76,38 +81,46 @@ fun HomeDashboardScreen(
 
         item {
             SectionCard(title = "Транзакции") {
-                ActionMenuRow(
-                    item = HomeMenuItem(
-                        "Приход",
-                        "Принять товар в ячейку",
-                        HomeMenuIcon.Receive
-                    ),
-                    onClick = { onOpenOperation(OperationType.Receive) }
-                )
-                ActionMenuRow(
-                    item = HomeMenuItem(
-                        "Расход",
-                        "Списать товар из ячейки",
-                        HomeMenuIcon.WriteOff
-                    ),
-                    onClick = { onOpenOperation(OperationType.WriteOff) }
-                )
-                ActionMenuRow(
-                    item = HomeMenuItem(
-                        "Перемещение",
-                        "Перенести товар между ячейками",
-                        HomeMenuIcon.Move
-                    ),
-                    onClick = { onOpenOperation(OperationType.Move) }
-                )
-                ActionMenuRow(
-                    item = HomeMenuItem(
-                        "Корректировка",
-                        "Установить точный остаток в ячейке",
-                        HomeMenuIcon.Adjust
-                    ),
-                    onClick = { onOpenOperation(OperationType.Adjust) }
-                )
+                if (canExecuteOperations) {
+                    ActionMenuRow(
+                        item = HomeMenuItem(
+                            "Приход",
+                            "Принять товар в ячейку",
+                            HomeMenuIcon.Receive
+                        ),
+                        onClick = { onOpenOperation(OperationType.Receive) }
+                    )
+                    ActionMenuRow(
+                        item = HomeMenuItem(
+                            "Расход",
+                            "Списать товар из ячейки",
+                            HomeMenuIcon.WriteOff
+                        ),
+                        onClick = { onOpenOperation(OperationType.WriteOff) }
+                    )
+                    ActionMenuRow(
+                        item = HomeMenuItem(
+                            "Перемещение",
+                            "Перенести товар между ячейками",
+                            HomeMenuIcon.Move
+                        ),
+                        onClick = { onOpenOperation(OperationType.Move) }
+                    )
+                    ActionMenuRow(
+                        item = HomeMenuItem(
+                            "Корректировка",
+                            "Установить точный остаток в ячейке",
+                            HomeMenuIcon.Adjust
+                        ),
+                        onClick = { onOpenOperation(OperationType.Adjust) }
+                    )
+                } else {
+                    Text(
+                        text = "Текущая роль позволяет просматривать журнал, но не менять остатки.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                }
             }
         }
 

@@ -11,6 +11,7 @@ import com.bezborodov.micromax.data.AssistantCommandDefinitionDto
 import com.bezborodov.micromax.data.AssistantCommandDto
 import com.bezborodov.micromax.data.AssistantCommandResultDto
 import com.bezborodov.micromax.data.MicroMaxApiClient
+import com.bezborodov.micromax.data.UnauthorizedException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,6 +56,17 @@ class AiAssistantViewModel(
             val result = runCatching {
                 withContext(Dispatchers.IO) { apiClient.confirmAssistant(command.commandId).toUiResult(command.commandType) }
             }.getOrElse {
+                if (it is UnauthorizedException) {
+                    uiState = uiState.copy(
+                        isProcessing = false,
+                        pendingCommand = null,
+                        requiresReauthentication = true,
+                        lastResult = AiAssistantResult(false, it.message ?: "Сессия истекла. Войдите снова."),
+                        messages = uiState.messages + AiChatMessage(it.message ?: "Сессия истекла. Войдите снова.", false)
+                    )
+                    return@launch
+                }
+
                 AiAssistantResult(false, it.message ?: "Не удалось подтвердить команду.")
             }
 
@@ -92,6 +104,17 @@ class AiAssistantViewModel(
             val response = runCatching {
                 withContext(Dispatchers.IO) { apiClient.interpretAssistant(text).toUiCommand() }
             }.getOrElse {
+                if (it is UnauthorizedException) {
+                    uiState = uiState.copy(
+                        isProcessing = false,
+                        pendingCommand = null,
+                        requiresReauthentication = true,
+                        lastResult = AiAssistantResult(false, it.message ?: "Сессия истекла. Войдите снова."),
+                        messages = uiState.messages + AiChatMessage(it.message ?: "Сессия истекла. Войдите снова.", false)
+                    )
+                    return@launch
+                }
+
                 val result = AiAssistantResult(false, it.message ?: "Не удалось обработать команду.")
                 uiState = uiState.copy(
                     isProcessing = false,
@@ -136,7 +159,16 @@ class AiAssistantViewModel(
             uiState = uiState.copy(isLoadingCommands = true)
             val definitions = runCatching {
                 withContext(Dispatchers.IO) { apiClient.loadAssistantCommands().map { it.toUiDefinition() } }
-            }.getOrDefault(emptyList())
+            }.getOrElse {
+                if (it is UnauthorizedException) {
+                    uiState = uiState.copy(
+                        isLoadingCommands = false,
+                        requiresReauthentication = true
+                    )
+                    return@launch
+                }
+                emptyList()
+            }
 
             uiState = uiState.copy(
                 isLoadingCommands = false,

@@ -1,6 +1,7 @@
 using MicroMax.Server.Data;
 using MicroMax.Server.Models;
 using MicroMax.Server.Services;
+using MicroMax.Server.Services.Auth;
 using MicroMax.Server.Services.Assistant;
 using MicroMax.Server.Services.Assistant.Core;
 using MicroMax.Server.Services.Assistant.Execution;
@@ -25,7 +26,7 @@ public sealed class AssistantServiceTests
 
         var service = CreateService(db);
 
-        var result = await service.InterpretAsync("найди перчатки");
+        var result = await service.InterpretAsync(1, "найди перчатки");
 
         Assert.Equal("Clarification", result.Mode);
         Assert.Equal(2, result.Choices.Count);
@@ -43,7 +44,7 @@ public sealed class AssistantServiceTests
 
         var service = CreateService(db);
 
-        var result = await service.InterpretAsync(text);
+        var result = await service.InterpretAsync(1, text);
 
         Assert.Equal("Command", result.Mode);
         Assert.Equal(commandType, result.CommandType);
@@ -60,7 +61,7 @@ public sealed class AssistantServiceTests
 
         var service = CreateService(db);
 
-        var result = await service.InterpretAsync("покажи сводку по складу");
+        var result = await service.InterpretAsync(1, "покажи сводку по складу");
 
         Assert.Equal("warehouse_summary", result.CommandType);
         Assert.False(result.RequiresConfirmation);
@@ -89,7 +90,7 @@ public sealed class AssistantServiceTests
             new AiCommandNormalizer(registry, rules),
             NullLogger<AiProviderSelector>.Instance);
 
-        return new AssistantService(db, selector);
+        return new AssistantService(db, selector, new WarehousePermissionService(db));
     }
 
     private static void SeedSingleProduct(MicroMaxDbContext db)
@@ -99,6 +100,21 @@ public sealed class AssistantServiceTests
         var cell1 = new StorageCell { Id = 1, StorageZone = zone, Code = "A-1", Name = "Полка A-1" };
         var cell2 = new StorageCell { Id = 2, StorageZone = zone, Code = "A-2", Name = "Полка A-2" };
         var product = new Product { Id = 1, Sku = "GLV-001", Name = "Перчатки рабочие", Unit = "пар", MinQuantity = 10 };
-        db.AddRange(warehouse, zone, cell1, cell2, product);
+        var role = new Role { Id = 1, Code = SystemRoleCodes.Worker, Name = "Сотрудник склада" };
+        var user = new AppUser
+        {
+            Id = 1,
+            Email = "worker@example.com",
+            DisplayName = "Сотрудник",
+            PasswordHash = "hashed",
+            IsActive = true
+        };
+        db.AddRange(warehouse, zone, cell1, cell2, product, role, user);
+        db.WarehouseUsers.Add(new WarehouseUser
+        {
+            WarehouseId = warehouse.Id,
+            UserId = user.Id,
+            RoleId = role.Id
+        });
     }
 }

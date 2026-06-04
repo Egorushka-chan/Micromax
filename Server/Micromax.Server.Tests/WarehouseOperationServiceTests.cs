@@ -15,7 +15,7 @@ public sealed class WarehouseOperationServiceTests
         SeedSingleBalance(db, quantity: 3m);
         var service = new WarehouseOperationService(db);
 
-        var operation = await service.AdjustAsync(new AdjustRequest(1, 1, 10m, null, "Проверка"));
+        var operation = await service.AdjustAsync(new AdjustRequest(1, 1, 10m, "Проверка"), 7);
 
         var balance = await db.StockBalances.SingleAsync();
         Assert.Equal(10m, balance.Quantity);
@@ -31,7 +31,7 @@ public sealed class WarehouseOperationServiceTests
         SeedSingleBalance(db, quantity: 15m);
         var service = new WarehouseOperationService(db);
 
-        var operation = await service.AdjustAsync(new AdjustRequest(1, 1, 4m, null, null));
+        var operation = await service.AdjustAsync(new AdjustRequest(1, 1, 4m, null), 7);
 
         var balance = await db.StockBalances.SingleAsync();
         Assert.Equal(4m, balance.Quantity);
@@ -45,7 +45,7 @@ public sealed class WarehouseOperationServiceTests
         SeedSingleBalance(db, quantity: 8m);
         var service = new WarehouseOperationService(db);
 
-        await service.AdjustAsync(new AdjustRequest(1, 1, 0m, null, null));
+        await service.AdjustAsync(new AdjustRequest(1, 1, 0m, null), 7);
 
         var balance = await db.StockBalances.SingleAsync();
         Assert.Equal(0m, balance.Quantity);
@@ -59,7 +59,7 @@ public sealed class WarehouseOperationServiceTests
         var service = new WarehouseOperationService(db);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.AdjustAsync(new AdjustRequest(1, 1, 8m, null, null)));
+            service.AdjustAsync(new AdjustRequest(1, 1, 8m, null), 7));
 
         Assert.Equal("Текущий остаток уже соответствует указанному значению.", error.Message);
     }
@@ -71,12 +71,14 @@ public sealed class WarehouseOperationServiceTests
         SeedSingleBalance(db, quantity: 2m);
         var service = new WarehouseOperationService(db);
 
-        await service.AdjustAsync(new AdjustRequest(1, 1, 5m, null, null));
+        await service.AdjustAsync(new AdjustRequest(1, 1, 5m, null), 7);
 
         var operation = await db.WarehouseOperations.SingleAsync();
         var log = await db.OperationLogs.SingleAsync();
 
         Assert.Equal(WarehouseOperationType.Adjust, operation.Type);
+        Assert.Equal(1, operation.WarehouseId);
+        Assert.Equal(7, operation.AppUserId);
         Assert.Equal(3m, operation.Quantity);
         Assert.Equal(operation.Id, log.WarehouseOperationId);
         Assert.Contains("с 2", log.Message);

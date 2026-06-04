@@ -1,19 +1,23 @@
 using MicroMax.Server.Data;
 using MicroMax.Server.Models;
 using MicroMax.Server.Services;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Pages;
 
-public sealed class IndexModel(MicroMaxDbContext db, WarehouseOperationService operations) : PageModel
+public sealed class IndexModel(
+    MicroMaxDbContext db,
+    WarehouseOperationService operations,
+    IPasswordHasher<AppUser> passwordHasher) : PageModel
 {
     public List<Warehouse> Warehouses { get; private set; } = [];
     public List<StorageZone> Zones { get; private set; } = [];
     public List<StorageCell> Cells { get; private set; } = [];
     public List<Product> Products { get; private set; } = [];
-    public List<UserRole> Roles { get; private set; } = [];
+    public List<Role> Roles { get; private set; } = [];
     public List<AppUser> Users { get; private set; } = [];
     public List<StockRow> StockRows { get; private set; } = [];
     public List<OperationRow> OperationRows { get; private set; } = [];
@@ -57,13 +61,38 @@ public sealed class IndexModel(MicroMaxDbContext db, WarehouseOperationService o
 
     public async Task<IActionResult> OnPostAddRoleAsync()
     {
-        db.UserRoles.Add(new UserRole { Name = RoleForm.Name });
+        db.Roles.Add(new Role
+        {
+            Code = RoleForm.Name.Trim().ToUpperInvariant(),
+            Name = RoleForm.Name.Trim()
+        });
         return await SaveAndRedirectAsync("Роль добавлена.");
     }
 
     public async Task<IActionResult> OnPostAddUserAsync()
     {
-        db.AppUsers.Add(new AppUser { Login = UserForm.Login, DisplayName = UserForm.DisplayName, UserRoleId = UserForm.UserRoleId });
+        var user = new AppUser
+        {
+            Email = UserForm.Login.Trim().ToLowerInvariant(),
+            DisplayName = UserForm.DisplayName,
+            CreatedAt = DateTimeOffset.UtcNow,
+            IsActive = true
+        };
+        user.PasswordHash = passwordHasher.HashPassword(user, "ChangeMe123!");
+        db.AppUsers.Add(user);
+        await db.SaveChangesAsync();
+
+        var warehouseId = await db.Warehouses.Select(x => x.Id).FirstOrDefaultAsync();
+        if (warehouseId != 0)
+        {
+            db.WarehouseUsers.Add(new WarehouseUser
+            {
+                WarehouseId = warehouseId,
+                UserId = user.Id,
+                RoleId = UserForm.UserRoleId,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+        }
         return await SaveAndRedirectAsync("Пользователь добавлен.");
     }
 
@@ -73,10 +102,10 @@ public sealed class IndexModel(MicroMaxDbContext db, WarehouseOperationService o
         {
             _ = OperationForm.Type switch
             {
-                WarehouseOperationType.Receive => await operations.ReceiveAsync(new ReceiveRequest(OperationForm.ProductId, OperationForm.TargetCellId!.Value, OperationForm.Quantity, OperationForm.UserId, OperationForm.Comment)),
-                WarehouseOperationType.Move => await operations.MoveAsync(new MoveRequest(OperationForm.ProductId, OperationForm.SourceCellId!.Value, OperationForm.TargetCellId!.Value, OperationForm.Quantity, OperationForm.UserId, OperationForm.Comment)),
-                WarehouseOperationType.WriteOff => await operations.WriteOffAsync(new WriteOffRequest(OperationForm.ProductId, OperationForm.SourceCellId!.Value, OperationForm.Quantity, OperationForm.UserId, OperationForm.Comment)),
-                WarehouseOperationType.Adjust => await operations.AdjustAsync(new AdjustRequest(OperationForm.ProductId, OperationForm.TargetCellId!.Value, OperationForm.Quantity, OperationForm.UserId, OperationForm.Comment)),
+                WarehouseOperationType.Receive => await operations.ReceiveAsync(new ReceiveRequest(OperationForm.ProductId, OperationForm.TargetCellId!.Value, OperationForm.Quantity, OperationForm.Comment), OperationForm.UserId ?? 0),
+                WarehouseOperationType.Move => await operations.MoveAsync(new MoveRequest(OperationForm.ProductId, OperationForm.SourceCellId!.Value, OperationForm.TargetCellId!.Value, OperationForm.Quantity, OperationForm.Comment), OperationForm.UserId ?? 0),
+                WarehouseOperationType.WriteOff => await operations.WriteOffAsync(new WriteOffRequest(OperationForm.ProductId, OperationForm.SourceCellId!.Value, OperationForm.Quantity, OperationForm.Comment), OperationForm.UserId ?? 0),
+                WarehouseOperationType.Adjust => await operations.AdjustAsync(new AdjustRequest(OperationForm.ProductId, OperationForm.TargetCellId!.Value, OperationForm.Quantity, OperationForm.Comment), OperationForm.UserId ?? 0),
                 _ => throw new InvalidOperationException("Неизвестный тип операции.")
             };
 
@@ -111,8 +140,8 @@ public sealed class IndexModel(MicroMaxDbContext db, WarehouseOperationService o
         Zones = await db.StorageZones.Include(x => x.Warehouse).OrderBy(x => x.Code).ToListAsync();
         Cells = await db.StorageCells.Include(x => x.StorageZone).ThenInclude(x => x!.Warehouse).OrderBy(x => x.Code).ToListAsync();
         Products = await db.Products.OrderBy(x => x.Name).ToListAsync();
-        Roles = await db.UserRoles.OrderBy(x => x.Name).ToListAsync();
-        Users = await db.AppUsers.Include(x => x.UserRole).OrderBy(x => x.DisplayName).ToListAsync();
+        Roles = await db.Roles.OrderBy(x => x.Name).ToListAsync();
+        Users = await db.AppUsers.OrderBy(x => x.DisplayName).ToListAsync();
         StockRows = await db.StockBalances
             .Include(x => x.Product)
             .Include(x => x.StorageCell)

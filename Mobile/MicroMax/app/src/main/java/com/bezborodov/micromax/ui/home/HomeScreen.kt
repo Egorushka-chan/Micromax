@@ -16,7 +16,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -26,6 +25,7 @@ import com.bezborodov.micromax.ui.assistant.AiAssistantNavigationTarget
 import com.bezborodov.micromax.ui.assistant.AiAssistantOverlay
 import com.bezborodov.micromax.ui.assistant.AiAssistantViewModel
 import com.bezborodov.micromax.ui.assistant.AiAssistantViewModelFactory
+import com.bezborodov.micromax.ui.auth.SessionUiState
 import com.bezborodov.micromax.ui.cells.CellsScreen
 import com.bezborodov.micromax.ui.components.BottomTab
 import com.bezborodov.micromax.ui.components.FirstLoadErrorState
@@ -37,35 +37,60 @@ import com.bezborodov.micromax.ui.items.ItemsScreen
 import com.bezborodov.micromax.ui.items.ItemsStartDestination
 import com.bezborodov.micromax.ui.operations.OperationType
 import com.bezborodov.micromax.ui.operations.OperationsScreen
-import com.bezborodov.micromax.ui.theme.MicroMaxTheme
 import kotlinx.coroutines.delay
 
 private const val PollingIntervalMs = 15_000L
 
 @Composable
 fun HomeScreen(
-    apiClient: MicroMaxApiClient = remember { MicroMaxApiClient() },
-    viewModel: WarehouseViewModel = viewModel(factory = WarehouseViewModelFactory(apiClient)),
-    assistantViewModel: AiAssistantViewModel = viewModel(factory = AiAssistantViewModelFactory(apiClient))
+    apiClient: MicroMaxApiClient,
+    sessionState: SessionUiState,
+    onSessionExpired: () -> Unit,
+    onLogout: () -> Unit,
+    onSelectActiveWarehouse: (Int) -> Unit,
+    onLoadWarehouseUsers: (Boolean) -> Unit,
+    onAddWarehouseUser: (String, String) -> Unit,
+    onUpdateWarehouseUserRole: (Int, String) -> Unit,
+    onRemoveWarehouseUser: (Int) -> Unit,
+    onClearSessionMessage: () -> Unit
 ) {
+    val userId = sessionState.currentUser?.id ?: 0
     val lifecycleOwner = LocalLifecycleOwner.current
-    var selectedTab by remember { mutableStateOf(BottomTab.Home) }
-    var itemsStartDestination by remember { mutableStateOf(ItemsStartDestination.List) }
-    var pendingOperationType by remember { mutableStateOf<OperationType?>(null) }
+    val permissions = sessionState.permissions
+    val viewModel: WarehouseViewModel = viewModel(
+        key = "warehouse-$userId",
+        factory = WarehouseViewModelFactory(apiClient)
+    )
+    val assistantViewModel: AiAssistantViewModel = viewModel(
+        key = "assistant-$userId",
+        factory = AiAssistantViewModelFactory(apiClient)
+    )
+
+    var selectedTab by remember(userId) { mutableStateOf(BottomTab.Home) }
+    var itemsStartDestination by remember(userId) { mutableStateOf(ItemsStartDestination.List) }
+    var pendingOperationType by remember(userId) { mutableStateOf<OperationType?>(null) }
+
     val state = viewModel.uiState
     val assistantState = assistantViewModel.uiState
+    val warehouseName = sessionState.currentUser?.warehouses?.firstOrNull()?.warehouseName
     val hasLoadedData = state.snapshot.products.isNotEmpty() ||
         state.snapshot.cells.isNotEmpty() ||
         state.snapshot.stocks.isNotEmpty() ||
         state.snapshot.operations.isNotEmpty()
 
-    LaunchedEffect(lifecycleOwner) {
+    LaunchedEffect(lifecycleOwner, userId) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             viewModel.refreshByPolling()
             while (true) {
                 delay(PollingIntervalMs)
                 viewModel.refreshByPolling()
             }
+        }
+    }
+
+    LaunchedEffect(state.requiresReauthentication, assistantState.requiresReauthentication) {
+        if (state.requiresReauthentication || assistantState.requiresReauthentication) {
+            onSessionExpired()
         }
     }
 
@@ -77,11 +102,22 @@ fun HomeScreen(
                 selectedTab = BottomTab.Items
             }
 
-            AiAssistantNavigationTarget.Operations -> selectedTab = BottomTab.Transactions
+            AiAssistantNavigationTarget.Operations -> {
+                if (permissions.canExecuteOperations) {
+                    selectedTab = BottomTab.Transactions
+                }
+            }
+
             null -> Unit
         }
         if (result.success) {
             viewModel.refreshByPolling()
+        }
+    }
+
+    LaunchedEffect(selectedTab, sessionState.selectedWarehouseId, sessionState.canManageSelectedWarehouseUsers) {
+        if (selectedTab == BottomTab.Settings && sessionState.canManageSelectedWarehouseUsers) {
+            onLoadWarehouseUsers(false)
         }
     }
 
@@ -95,6 +131,9 @@ fun HomeScreen(
                         selectedTab = it
                         if (it == BottomTab.Items) {
                             itemsStartDestination = ItemsStartDestination.List
+                        }
+                        if (it != BottomTab.Settings) {
+                            onClearSessionMessage()
                         }
                     },
                     onAssistantClick = assistantViewModel::open
@@ -123,6 +162,9 @@ fun HomeScreen(
                     else -> when (selectedTab) {
                         BottomTab.Home -> HomeDashboardScreen(
                             state = state,
+                            warehouseName = warehouseName,
+                            canCreateProducts = permissions.canCreateProducts,
+                            canExecuteOperations = permissions.canExecuteOperations,
                             onOpenItems = {
                                 itemsStartDestination = ItemsStartDestination.List
                                 selectedTab = BottomTab.Items
@@ -143,37 +185,42 @@ fun HomeScreen(
                             state = state,
                             isSubmitting = state.isOperationSubmitting,
                             startDestination = itemsStartDestination,
+                            canCreateProducts = permissions.canCreateProducts,
+                            canExecuteOperations = permissions.canExecuteOperations,
                             onCreateProduct = viewModel::createProduct,
                             onOpenOperations = { selectedTab = BottomTab.Transactions }
                         )
 
                         BottomTab.Cells -> CellsScreen(
                             state = state,
+                            canExecuteOperations = permissions.canExecuteOperations,
                             onOpenOperations = { selectedTab = BottomTab.Transactions }
                         )
 
-                        BottomTab.Assistant -> {
-                            HomeDashboardScreen(
-                                state = state,
-                                onOpenItems = {
-                                    itemsStartDestination = ItemsStartDestination.List
-                                    selectedTab = BottomTab.Items
-                                },
-                                onOpenAddItem = {
-                                    itemsStartDestination = ItemsStartDestination.Add
-                                    selectedTab = BottomTab.Items
-                                },
-                                onOpenCells = { selectedTab = BottomTab.Cells },
-                                onOpenOperation = { type ->
-                                    pendingOperationType = type
-                                    selectedTab = BottomTab.Transactions
-                                },
-                                onOpenAssistant = assistantViewModel::open
-                            )
-                        }
+                        BottomTab.Assistant -> HomeDashboardScreen(
+                            state = state,
+                            warehouseName = warehouseName,
+                            canCreateProducts = permissions.canCreateProducts,
+                            canExecuteOperations = permissions.canExecuteOperations,
+                            onOpenItems = {
+                                itemsStartDestination = ItemsStartDestination.List
+                                selectedTab = BottomTab.Items
+                            },
+                            onOpenAddItem = {
+                                itemsStartDestination = ItemsStartDestination.Add
+                                selectedTab = BottomTab.Items
+                            },
+                            onOpenCells = { selectedTab = BottomTab.Cells },
+                            onOpenOperation = { type ->
+                                pendingOperationType = type
+                                selectedTab = BottomTab.Transactions
+                            },
+                            onOpenAssistant = assistantViewModel::open
+                        )
 
                         BottomTab.Transactions -> OperationsScreen(
                             state = state,
+                            canExecuteOperations = permissions.canExecuteOperations,
                             requestedOperationType = pendingOperationType,
                             onRequestedOperationConsumed = { pendingOperationType = null },
                             onReceive = viewModel::receive,
@@ -184,7 +231,14 @@ fun HomeScreen(
 
                         BottomTab.Settings -> SettingsScreen(
                             state = state,
-                            onRefresh = viewModel::refreshManually
+                            sessionState = sessionState,
+                            onRefresh = viewModel::refreshManually,
+                            onLogout = onLogout,
+                            onSelectActiveWarehouse = onSelectActiveWarehouse,
+                            onReloadWarehouseUsers = { onLoadWarehouseUsers(true) },
+                            onAddWarehouseUser = onAddWarehouseUser,
+                            onUpdateWarehouseUserRole = onUpdateWarehouseUserRole,
+                            onRemoveWarehouseUser = onRemoveWarehouseUser
                         )
                     }
                 }
@@ -200,18 +254,5 @@ fun HomeScreen(
             onConfirm = assistantViewModel::confirmPending,
             onCancelPending = assistantViewModel::rejectPending
         )
-    }
-}
-
-@Preview(
-    showBackground = true,
-    backgroundColor = 0xFFF3F3F3,
-    widthDp = 380,
-    heightDp = 820
-)
-@Composable
-private fun HomeScreenPreview() {
-    MicroMaxTheme {
-        HomeScreen()
     }
 }

@@ -18,6 +18,8 @@ public sealed class Warehouse
     [MaxLength(240)]
     public string? Address { get; set; }
     public List<StorageZone> Zones { get; set; } = [];
+    public List<WarehouseUser> Users { get; set; } = [];
+    public List<WarehouseOperation> Operations { get; set; } = [];
 }
 
 public sealed class StorageZone
@@ -42,6 +44,8 @@ public sealed class StorageCell
     [Required, MaxLength(120)]
     public string Name { get; set; } = string.Empty;
     public List<StockBalance> Balances { get; set; } = [];
+    public List<WarehouseOperation> SourceOperations { get; set; } = [];
+    public List<WarehouseOperation> TargetOperations { get; set; } = [];
 }
 
 public sealed class Product
@@ -55,6 +59,7 @@ public sealed class Product
     public string Unit { get; set; } = "шт";
     public decimal MinQuantity { get; set; }
     public List<StockBalance> Balances { get; set; } = [];
+    public List<WarehouseOperation> Operations { get; set; } = [];
 }
 
 public sealed class StockBalance
@@ -78,18 +83,29 @@ public sealed class UserRole
 public sealed class AppUser
 {
     public int Id { get; set; }
-    [Required, MaxLength(80)]
-    public string Login { get; set; } = string.Empty;
+
+    [Required, MaxLength(256)]
+    public string Email { get; set; } = string.Empty;
+
     [Required, MaxLength(120)]
     public string DisplayName { get; set; } = string.Empty;
-    public int UserRoleId { get; set; }
-    public UserRole? UserRole { get; set; }
+
+    [Required, MaxLength(512)]
+    public string PasswordHash { get; set; } = string.Empty;
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public bool IsActive { get; set; } = true;
+    public List<WarehouseUser> WarehouseUsers { get; set; } = [];
+    public List<RefreshToken> RefreshTokens { get; set; } = [];
+    public List<WarehouseOperation> Operations { get; set; } = [];
 }
 
 public sealed class WarehouseOperation
 {
     public int Id { get; set; }
     public WarehouseOperationType Type { get; set; }
+    public int WarehouseId { get; set; }
+    public Warehouse? Warehouse { get; set; }
     public int ProductId { get; set; }
     public Product? Product { get; set; }
     public int? SourceCellId { get; set; }
@@ -115,10 +131,10 @@ public sealed class OperationLog
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
-public sealed record ReceiveRequest(int ProductId, int TargetCellId, decimal Quantity, int? UserId, string? Comment);
-public sealed record MoveRequest(int ProductId, int SourceCellId, int TargetCellId, decimal Quantity, int? UserId, string? Comment);
-public sealed record WriteOffRequest(int ProductId, int SourceCellId, decimal Quantity, int? UserId, string? Comment);
-public sealed record AdjustRequest(int ProductId, int TargetCellId, decimal TargetQuantity, int? UserId, string? Comment);
+public sealed record ReceiveRequest(int ProductId, int TargetCellId, decimal Quantity, string? Comment);
+public sealed record MoveRequest(int ProductId, int SourceCellId, int TargetCellId, decimal Quantity, string? Comment);
+public sealed record WriteOffRequest(int ProductId, int SourceCellId, decimal Quantity, string? Comment);
+public sealed record AdjustRequest(int ProductId, int TargetCellId, decimal TargetQuantity, string? Comment);
 public sealed record AssistantRequest(string Text);
 public sealed record AssistantConfirmationRequest(string CommandId, bool Confirmed);
 

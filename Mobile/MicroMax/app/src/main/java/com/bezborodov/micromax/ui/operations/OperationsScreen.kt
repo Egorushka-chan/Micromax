@@ -176,6 +176,7 @@ private data class OperationEditorState(
 @Composable
 fun OperationsScreen(
     state: HomeUiState,
+    canExecuteOperations: Boolean,
     requestedOperationType: OperationType? = null,
     onRequestedOperationConsumed: () -> Unit = {},
     onReceive: (productId: Int, targetCellId: Int, quantity: Double, comment: String?) -> Unit,
@@ -187,7 +188,7 @@ fun OperationsScreen(
     val cells = state.snapshot.cells
     val stocks = state.snapshot.stocks
     val initialEditorState = buildInitialEditorState(
-        requestedOperationType = requestedOperationType,
+        requestedOperationType = requestedOperationType.takeIf { canExecuteOperations },
         products = products,
         cells = cells,
         stocks = stocks
@@ -273,13 +274,25 @@ fun OperationsScreen(
         mode = OperationsMode.Create(type)
     }
 
-    LaunchedEffect(products, cells, stocks, activeType) {
-        if (mode is OperationsMode.Create || mode is OperationsMode.Confirm) {
+    LaunchedEffect(products, cells, stocks, activeType, canExecuteOperations) {
+        if (canExecuteOperations && (mode is OperationsMode.Create || mode is OperationsMode.Confirm)) {
             syncSelections(activeType)
         }
     }
 
-    LaunchedEffect(requestedOperationType) {
+    LaunchedEffect(canExecuteOperations) {
+        if (!canExecuteOperations) {
+            validationMessage = null
+            isTypeSheetVisible = false
+            mode = OperationsMode.List
+        }
+    }
+
+    LaunchedEffect(requestedOperationType, canExecuteOperations) {
+        if (!canExecuteOperations) {
+            onRequestedOperationConsumed()
+            return@LaunchedEffect
+        }
         val requestedType = requestedOperationType ?: return@LaunchedEffect
         resetDraft(requestedType)
         onRequestedOperationConsumed()
@@ -363,6 +376,7 @@ fun OperationsScreen(
         when (val currentMode = mode) {
             OperationsMode.List -> OperationListScreen(
                 operations = state.snapshot.operations,
+                canExecuteOperations = canExecuteOperations,
                 filter = filter,
                 onFilterSelected = { filter = it },
                 onAddClick = { isTypeSheetVisible = true }
@@ -422,7 +436,7 @@ fun OperationsScreen(
             )
         }
 
-        if (isTypeSheetVisible) {
+        if (isTypeSheetVisible && canExecuteOperations) {
             OperationTypeSheet(
                 onDismiss = { isTypeSheetVisible = false },
                 onTypeSelected = {
@@ -437,6 +451,7 @@ fun OperationsScreen(
 @Composable
 private fun OperationListScreen(
     operations: List<OperationDto>,
+    canExecuteOperations: Boolean,
     filter: OperationFilter,
     onFilterSelected: (OperationFilter) -> Unit,
     onAddClick: () -> Unit
@@ -466,20 +481,24 @@ private fun OperationListScreen(
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center
                 )
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(1.dp, SearchBorder, CircleShape)
-                        .clickable(onClick = onAddClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Add,
-                        contentDescription = "Новая транзакция",
-                        tint = Color.Black
-                    )
+                if (canExecuteOperations) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .border(1.dp, SearchBorder, CircleShape)
+                            .clickable(onClick = onAddClick),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = "Новая транзакция",
+                            tint = Color.Black
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(44.dp))
                 }
             }
         }
@@ -517,7 +536,11 @@ private fun OperationListScreen(
             item {
                 EmptyStateCard(
                     title = "Транзакции не найдены",
-                    description = "Измените фильтр или создайте новую складскую операцию."
+                    description = if (canExecuteOperations) {
+                        "Измените фильтр или создайте новую складскую операцию."
+                    } else {
+                        "Журнал операций пока пуст."
+                    }
                 )
             }
         } else {
@@ -536,6 +559,16 @@ private fun OperationListScreen(
                         OperationRowCard(listItem.operation)
                     }
                 }
+            }
+        }
+
+        if (!canExecuteOperations) {
+            item {
+                Text(
+                    text = "Текущая роль позволяет просматривать журнал, но не выполнять операции изменения остатков.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMuted
+                )
             }
         }
     }
@@ -605,6 +638,14 @@ private fun OperationRowCard(operation: OperationDto) {
                 style = MaterialTheme.typography.bodyLarge,
                 color = TextMuted
             )
+
+            operation.performedBy?.let { performedBy ->
+                Text(
+                    text = "Исполнитель: $performedBy",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMuted
+                )
+            }
 
             if (!visibleComment.isNullOrBlank() && type != OperationType.Adjust) {
                 Text(

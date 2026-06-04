@@ -13,7 +13,8 @@ data class HomeUiState(
     val isOperationSubmitting: Boolean = false,
     val isAssistantLoading: Boolean = false,
     val message: String? = null,
-    val pendingCommand: AssistantCommandDto? = null
+    val pendingCommand: AssistantCommandDto? = null,
+    val requiresReauthentication: Boolean = false
 ) {
     val incomeCount: Int
         get() = snapshot.operations.count { it.type.equals("Receive", ignoreCase = true) }

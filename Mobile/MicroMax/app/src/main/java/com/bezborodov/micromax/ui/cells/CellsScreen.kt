@@ -30,6 +30,7 @@ import com.bezborodov.micromax.ui.home.HomeUiState
 @Composable
 fun CellsScreen(
     state: HomeUiState,
+    canExecuteOperations: Boolean,
     onOpenOperations: () -> Unit
 ) {
     val cells = state.snapshot.cells
@@ -75,13 +76,21 @@ fun CellsScreen(
                                 subtitle = "${stock.quantity} ${stock.unit} · ${stock.sku}"
                             )
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = onOpenOperations, modifier = Modifier.weight(1f)) {
-                                Text("Расход")
+                        if (canExecuteOperations) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = onOpenOperations, modifier = Modifier.weight(1f)) {
+                                    Text("Расход")
+                                }
+                                Button(onClick = onOpenOperations, modifier = Modifier.weight(1f)) {
+                                    Text("Переместить")
+                                }
                             }
-                            Button(onClick = onOpenOperations, modifier = Modifier.weight(1f)) {
-                                Text("Переместить")
-                            }
+                        } else {
+                            Text(
+                                text = "Изменение остатков доступно только пользователям с правом выполнения операций.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextMuted
+                            )
                         }
                     }
                 }
