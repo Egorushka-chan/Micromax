@@ -23,6 +23,27 @@ body {
   color: #20242a;
 }
 
+.admin-session {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-session__name {
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.admin-session__button,
+.admin-session__link {
+  border: 0;
+  border-radius: 6px;
+  background: #111827;
+  color: #fff;
+  padding: 8px 12px;
+  text-decoration: none;
+}
+
 .hero {
   background: #1f2937;
   color: #fff;
@@ -113,6 +134,51 @@ button {
   background: #2563eb;
   color: #fff;
   padding: 9px 14px;
+}
+
+.auth-shell {
+  min-height: calc(100vh - 220px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 460px;
+  background: #fff;
+  border: 1px solid #e2e5ea;
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+}
+
+.auth-card h1 {
+  margin: 0 0 12px;
+  font-size: 30px;
+}
+
+.auth-text {
+  color: #4b5563;
+  margin-bottom: 18px;
+}
+
+.auth-form {
+  gap: 14px;
+}
+
+.checkbox-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-row input {
+  min-height: auto;
+}
+
+.auth-actions {
+  margin-top: 18px;
 }
 
 table {

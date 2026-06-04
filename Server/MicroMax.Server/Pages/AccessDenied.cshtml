@@ -1,0 +1,18 @@
+@page
+@model MicroMax.Server.Pages.AccessDeniedModel
+@{
+    ViewData["Title"] = "Доступ запрещён";
+}
+
+<section class="auth-shell">
+    <div class="auth-card">
+        <p class="eyebrow">MicroMax</p>
+        <h1>Доступ запрещён</h1>
+        <p class="auth-text">
+            У текущего пользователя нет прав администратора для работы с админ-панелью.
+        </p>
+        <div class="auth-actions">
+            <a class="btn btn-primary" asp-page="/Login">Вернуться к входу</a>
+        </div>
+    </div>
+</section>

@@ -1,0 +1,45 @@
+@page
+@model MicroMax.Server.Pages.LoginModel
+@{
+    ViewData["Title"] = "Вход в админ-панель";
+}
+
+<section class="auth-shell">
+    <div class="auth-card">
+        <p class="eyebrow">MicroMax</p>
+        <h1>Вход в админ-панель</h1>
+        <p class="auth-text">
+            Доступ к панели управления разрешён только администраторам склада.
+        </p>
+
+        @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+        {
+            <div class="alert alert-danger">@Model.ErrorMessage</div>
+        }
+
+        <form method="post" class="stack auth-form">
+            <input type="hidden" asp-for="ReturnUrl" />
+
+            <label asp-for="Input.Email">Email
+                <input asp-for="Input.Email" type="email" autocomplete="username" />
+                <span asp-validation-for="Input.Email" class="text-danger"></span>
+            </label>
+
+            <label asp-for="Input.Password">Пароль
+                <input asp-for="Input.Password" type="password" autocomplete="current-password" />
+                <span asp-validation-for="Input.Password" class="text-danger"></span>
+            </label>
+
+            <label class="checkbox-row">
+                <input asp-for="Input.RememberMe" type="checkbox" />
+                <span>Запомнить вход на этом устройстве</span>
+            </label>
+
+            <button type="submit">Войти</button>
+        </form>
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

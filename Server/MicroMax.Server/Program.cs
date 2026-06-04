@@ -12,7 +12,9 @@ using MicroMax.Server.Services.Assistant.Prompting;
 using MicroMax.Server.Services.Assistant.Providers;
 using MicroMax.Server.Services.Assistant.Recovery;
 using MicroMax.Server.Services.Assistant.Registry;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -21,7 +23,12 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddRazorPages();
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions.AuthorizePage("/Index", AdminPanelAuthenticationDefaults.PolicyName);
+    options.Conventions.AllowAnonymousToPage("/Login");
+    options.Conventions.AllowAnonymousToPage("/AccessDenied");
+});
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -79,7 +86,20 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<WarehousePermissionService>();
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services.AddScoped<AdminPanelSignInService>();
+builder.Services.AddScoped<IAuthorizationHandler, AdminPanelAuthorizationHandler>();
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddCookie(AdminPanelAuthenticationDefaults.Scheme, options =>
+    {
+        options.LoginPath = "/Login";
+        options.AccessDeniedPath = "/AccessDenied";
+        options.SlidingExpiration = true;
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    })
     .AddJwtBearer(options =>
     {
         var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
@@ -119,7 +139,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             }
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AdminPanelAuthenticationDefaults.PolicyName, policy =>
+    {
+        policy.AuthenticationSchemes.Add(AdminPanelAuthenticationDefaults.Scheme);
+        policy.RequireAuthenticatedUser();
+        policy.Requirements.Add(new AdminPanelRequirement());
+    });
+});
 builder.Services.AddScoped<WarehouseOperationService>();
 builder.Services.Configure<AiAssistantOptions>(builder.Configuration.GetSection("Assistant"));
 builder.Services.AddSingleton<AiCommandRegistry>();
@@ -167,3 +195,5 @@ app.MapRazorPages()
 app.MapControllers();
 
 app.Run();
+
+public partial class Program;
