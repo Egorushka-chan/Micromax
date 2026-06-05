@@ -133,7 +133,8 @@ data class AssistantCommandResultDto(
 )
 
 class MicroMaxApiClient(
-    private val baseUrl: String = "http://10.0.2.2:5101"
+    private val baseUrl: String = "http://95.104.193.73:80",
+    private val baseUrlLocal: String = "http://10.0.2.2:5101"
 ) {
     var sessionAuthDelegate: SessionAuthDelegate? = null
 
