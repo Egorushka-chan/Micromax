@@ -36,6 +36,11 @@ public sealed class AssistantApiService(
     {
         if (!request.Confirmed)
         {
+            if (!AssistantService.TryCancelPendingCommand(request.CommandId, userId))
+            {
+                throw new ApiNotFoundException("Команда не найдена или уже обработана.");
+            }
+
             return new AssistantCommandResultResponse(true, "Команда отменена.", []);
         }
 
@@ -52,6 +57,15 @@ public sealed class AssistantApiService(
             [operation is null ? command.Summary : $"Операция #{operation.Id}: {operation.Type}"]);
     }
 
+    public async Task<AssistantCommandResponse> ClarifyAsync(
+        int userId,
+        AssistantClarificationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var command = await assistantService.ClarifyAsync(userId, request.CommandId, request.ChoiceId, cancellationToken);
+        return ToResponse(command);
+    }
+
     private static AssistantCommandResponse ToResponse(AssistantCommand command) =>
         new(
             command.CommandId,
@@ -59,9 +73,15 @@ public sealed class AssistantApiService(
             command.Provider,
             command.CommandType,
             command.RiskLevel,
+            command.ProductId,
+            command.SourceCellId,
+            command.TargetCellId,
+            command.Quantity,
+            command.MinQuantity,
             command.Summary,
             command.RequiresConfirmation,
             command.ClarificationQuestion,
+            command.ClarificationTarget,
             command.Choices
                 .Select(choice => new AssistantChoiceResponse(choice.Id, choice.Label, choice.Kind))
                 .ToList());

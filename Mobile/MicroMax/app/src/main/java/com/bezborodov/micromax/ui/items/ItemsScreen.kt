@@ -77,6 +77,22 @@ enum class ItemsStartDestination {
     Add
 }
 
+enum class ItemsStockFilter(val title: String) {
+    Available("В наличии"),
+    All("Все товары"),
+    LowStock("Низкий остаток"),
+    ZeroStock("Нулевой остаток");
+
+    fun next(): ItemsStockFilter {
+        return when (this) {
+            Available -> All
+            All -> LowStock
+            LowStock -> ZeroStock
+            ZeroStock -> Available
+        }
+    }
+}
+
 private enum class ItemsDestination {
     List,
     Details,
@@ -92,7 +108,8 @@ private data class ProductSummary(
     val product: ProductDto,
     val totalQuantity: Double,
     val locationCount: Int,
-    val lowStock: Boolean
+    val lowStock: Boolean,
+    val zeroStock: Boolean
 )
 
 @Composable
@@ -106,6 +123,8 @@ fun ItemsScreen(
     onSessionExpired: () -> Unit,
     requestedProductId: Int?,
     onRequestedProductConsumed: () -> Unit,
+    requestedItemsFilter: ItemsStockFilter?,
+    onRequestedItemsFilterConsumed: () -> Unit,
     onOpenScanner: (String, (ScannedBarcode) -> Unit) -> Unit,
     onCreateProduct: (String, String, String, Double, Int?, Double, String?, String?) -> Unit,
     onOpenOperations: () -> Unit
@@ -154,6 +173,8 @@ fun ItemsScreen(
             products = state.snapshot.products,
             stocks = state.snapshot.stocks,
             canCreateProducts = canCreateProducts,
+            requestedItemsFilter = requestedItemsFilter,
+            onRequestedItemsFilterConsumed = onRequestedItemsFilterConsumed,
             onOpenProduct = {
                 selectedProductId = it.id
                 destination = ItemsDestination.Details.name
@@ -170,6 +191,8 @@ fun ItemsScreen(
                     products = state.snapshot.products,
                     stocks = state.snapshot.stocks,
                     canCreateProducts = canCreateProducts,
+                    requestedItemsFilter = requestedItemsFilter,
+                    onRequestedItemsFilterConsumed = onRequestedItemsFilterConsumed,
                     onOpenProduct = {
                         selectedProductId = it.id
                         destination = ItemsDestination.Details.name
@@ -200,6 +223,8 @@ fun ItemsScreen(
                     products = state.snapshot.products,
                     stocks = state.snapshot.stocks,
                     canCreateProducts = false,
+                    requestedItemsFilter = requestedItemsFilter,
+                    onRequestedItemsFilterConsumed = onRequestedItemsFilterConsumed,
                     onOpenProduct = {
                         selectedProductId = it.id
                         destination = ItemsDestination.Details.name
@@ -237,22 +262,35 @@ private fun ProductsListScreen(
     products: List<ProductDto>,
     stocks: List<StockDto>,
     canCreateProducts: Boolean,
+    requestedItemsFilter: ItemsStockFilter?,
+    onRequestedItemsFilterConsumed: () -> Unit,
     onOpenProduct: (ProductDto) -> Unit,
     onAddProduct: () -> Unit
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var availableOnly by rememberSaveable { mutableStateOf(true) }
+    var stockFilter by rememberSaveable { mutableStateOf(ItemsStockFilter.Available.name) }
     var sortMode by rememberSaveable { mutableStateOf(ItemSortMode.Name.name) }
 
+    LaunchedEffect(requestedItemsFilter) {
+        val filter = requestedItemsFilter ?: return@LaunchedEffect
+        stockFilter = filter.name
+        onRequestedItemsFilterConsumed()
+    }
+
     val normalizedQuery = query.trim()
-    val summaries = remember(products, stocks, normalizedQuery, availableOnly, sortMode) {
+    val activeFilter = ItemsStockFilter.valueOf(stockFilter)
+    val summaries = remember(products, stocks, normalizedQuery, activeFilter, sortMode) {
         products.map { product ->
-            val productStocks = stocks.filter { it.sku == product.sku && it.quantity > 0.0 }
+            val productStocks = stocks.filter { it.sku == product.sku }
+            val totalQuantity = productStocks.sumOf { it.quantity }
+            val zeroStock = totalQuantity <= 0.0
+            val lowStock = totalQuantity > 0.0 && totalQuantity <= product.minQuantity
             ProductSummary(
                 product = product,
-                totalQuantity = productStocks.sumOf { it.quantity },
-                locationCount = productStocks.size,
-                lowStock = productStocks.sumOf { it.quantity } <= product.minQuantity
+                totalQuantity = totalQuantity,
+                locationCount = productStocks.count { it.quantity > 0.0 },
+                lowStock = lowStock,
+                zeroStock = zeroStock
             )
         }.filter { summary ->
             val matchesQuery = normalizedQuery.isBlank() ||
@@ -265,7 +303,12 @@ private fun ProductsListScreen(
                                 stock.zoneCode.contains(normalizedQuery, ignoreCase = true)
                             )
                 }
-            val matchesAvailability = !availableOnly || summary.totalQuantity > 0.0
+            val matchesAvailability = when (activeFilter) {
+                ItemsStockFilter.Available -> summary.totalQuantity > 0.0
+                ItemsStockFilter.All -> true
+                ItemsStockFilter.LowStock -> summary.lowStock
+                ItemsStockFilter.ZeroStock -> summary.zeroStock
+            }
             matchesQuery && matchesAvailability
         }.sortedWith(
             when (ItemSortMode.valueOf(sortMode)) {
@@ -351,11 +394,11 @@ private fun ProductsListScreen(
                     Text(if (ItemSortMode.valueOf(sortMode) == ItemSortMode.Name) "По названию" else "По остатку")
                 }
                 OutlinedButton(
-                    onClick = { availableOnly = !availableOnly },
+                    onClick = { stockFilter = ItemsStockFilter.valueOf(stockFilter).next().name },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White)
                 ) {
-                    Text(if (availableOnly) "В наличии" else "Все товары")
+                    Text(activeFilter.title)
                 }
             }
         }

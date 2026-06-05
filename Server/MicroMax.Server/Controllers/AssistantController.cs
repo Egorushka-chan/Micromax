@@ -59,4 +59,22 @@ public sealed class AssistantController(
         var userId = currentUserService.GetRequiredUserId(User);
         return Ok(await assistantApiService.ConfirmAsync(userId, request, cancellationToken));
     }
+
+    /// <summary>
+    /// Продолжает цепочку уточнения по выбранному варианту.
+    /// </summary>
+    [HttpPost("clarify")]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(AssistantCommandResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AssistantCommandResponse>> ClarifyAsync(
+        [FromBody] AssistantClarificationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await assistantApiService.ClarifyAsync(userId, request, cancellationToken));
+    }
 }

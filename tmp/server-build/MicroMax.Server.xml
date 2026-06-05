@@ -1,0 +1,527 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>MicroMax.Server</name>
+    </assembly>
+    <members>
+        <member name="T:MicroMax.Server.Controllers.AssistantController">
+            <summary>
+            Обрабатывает команды складского помощника и подтверждение операций.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.AssistantController.#ctor(MicroMax.Server.Services.Api.AssistantApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Обрабатывает команды складского помощника и подтверждение операций.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.AssistantController.GetCommands">
+            <summary>
+            Возвращает справочник доступных команд помощника.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.AssistantController.InterpretAsync(MicroMax.Server.Api.Assistant.AssistantRequest,System.Threading.CancellationToken)">
+            <summary>
+            Интерпретирует текстовую команду пользователя.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.AssistantController.ConfirmAsync(MicroMax.Server.Api.Assistant.AssistantConfirmationRequest,System.Threading.CancellationToken)">
+            <summary>
+            Подтверждает или отменяет ожидающую команду помощника.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.AssistantController.ClarifyAsync(MicroMax.Server.Api.Assistant.AssistantClarificationRequest,System.Threading.CancellationToken)">
+            <summary>
+            Продолжает цепочку уточнения по выбранному варианту.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.AuthController">
+            <summary>
+            Выполняет регистрацию, вход и обновление токенов доступа.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.AuthController.#ctor(MicroMax.Server.Services.Auth.AuthService)">
+            <summary>
+            Выполняет регистрацию, вход и обновление токенов доступа.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.AuthController.RegisterAsync(MicroMax.Server.Api.Auth.RegisterRequest,System.Threading.CancellationToken)">
+            <summary>
+            Регистрирует нового пользователя и выдаёт пару токенов.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.AuthController.LoginAsync(MicroMax.Server.Api.Auth.LoginRequest,System.Threading.CancellationToken)">
+            <summary>
+            Аутентифицирует пользователя по email и паролю.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.AuthController.RefreshAsync(MicroMax.Server.Api.Auth.RefreshRequest,System.Threading.CancellationToken)">
+            <summary>
+            Обновляет access token по действующему refresh token.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.AuthController.LogoutAsync(MicroMax.Server.Api.Auth.LogoutRequest,System.Threading.CancellationToken)">
+            <summary>
+            Отзывает refresh token текущей сессии.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.BarcodesController">
+            <summary>
+            Работает с поиском и деактивацией штрих-кодов.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.BarcodesController.#ctor(MicroMax.Server.Services.Api.BarcodesApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Работает с поиском и деактивацией штрих-кодов.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.BarcodesController.ResolveAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Ищет объект системы по значению штрих-кода.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.BarcodesController.DeleteAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Деактивирует штрих-код, не удаляя запись физически.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.CellsController">
+            <summary>
+            Работает со складскими ячейками и их содержимым.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.CellsController.#ctor(MicroMax.Server.Services.Api.BarcodesApiService,MicroMax.Server.Services.Api.CellsApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Работает со складскими ячейками и их содержимым.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.CellsController.GetAsync(System.Threading.CancellationToken)">
+            <summary>
+            Возвращает ячейки хранения, доступные пользователю.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.CellsController.GetBarcodesAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Возвращает активные штрих-коды ячейки хранения.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.CellsController.CreateBarcodeAsync(System.Int32,MicroMax.Server.Api.Barcodes.BarcodeDraftRequest,System.Threading.CancellationToken)">
+            <summary>
+            Привязывает новый штрих-код к ячейке хранения.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.CellsController.GetContentsAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Возвращает содержимое выбранной ячейки.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.CellsController.CreateAsync(MicroMax.Server.Api.Cells.CreateStorageCellRequest,System.Threading.CancellationToken)">
+            <summary>
+            Создаёт новую ячейку хранения.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.CellsController.DeleteAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Удаляет ячейку хранения.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.MicroMaxControllerBase">
+            <summary>
+            Базовый API-контроллер с общими HTTP-хелперами.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.OperationsController">
+            <summary>
+            Выполняет складские операции и возвращает журнал операций.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.OperationsController.#ctor(MicroMax.Server.Services.Api.OperationsApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Выполняет складские операции и возвращает журнал операций.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.OperationsController.GetAsync(System.Nullable{System.DateTimeOffset},System.Nullable{System.DateTimeOffset},System.Threading.CancellationToken)">
+            <summary>
+            Возвращает журнал складских операций с необязательной фильтрацией по периоду.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.OperationsController.ReceiveAsync(MicroMax.Server.Api.Operations.ReceiveRequest,System.Threading.CancellationToken)">
+            <summary>
+            Выполняет приёмку товара в целевую ячейку.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.OperationsController.MoveAsync(MicroMax.Server.Api.Operations.MoveRequest,System.Threading.CancellationToken)">
+            <summary>
+            Выполняет перемещение товара между ячейками.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.OperationsController.WriteOffAsync(MicroMax.Server.Api.Operations.WriteOffRequest,System.Threading.CancellationToken)">
+            <summary>
+            Выполняет списание товара из выбранной ячейки.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.OperationsController.AdjustAsync(MicroMax.Server.Api.Operations.AdjustRequest,System.Threading.CancellationToken)">
+            <summary>
+            Корректирует итоговый остаток товара в ячейке.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.ProductsController">
+            <summary>
+            Управляет номенклатурой и местонахождением товаров.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ProductsController.#ctor(MicroMax.Server.Services.Api.BarcodesApiService,MicroMax.Server.Services.Api.ProductsApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Управляет номенклатурой и местонахождением товаров.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ProductsController.GetAsync(System.Threading.CancellationToken)">
+            <summary>
+            Возвращает список номенклатуры.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ProductsController.GetBarcodesAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Возвращает активные штрих-коды товара.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ProductsController.CreateBarcodeAsync(System.Int32,MicroMax.Server.Api.Barcodes.BarcodeDraftRequest,System.Threading.CancellationToken)">
+            <summary>
+            Привязывает новый штрих-код к товару.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ProductsController.GetLocationsAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Возвращает ячейки, в которых есть остаток по выбранной номенклатуре.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ProductsController.CreateAsync(MicroMax.Server.Api.Products.CreateProductRequest,System.Threading.CancellationToken)">
+            <summary>
+            Создаёт новую позицию номенклатуры.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ProductsController.UpdateAsync(System.Int32,MicroMax.Server.Api.Products.UpdateProductRequest,System.Threading.CancellationToken)">
+            <summary>
+            Обновляет свойства номенклатуры.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ProductsController.DeleteAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Удаляет номенклатуру.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.RolesController">
+            <summary>
+            Управляет ролями пользователей микросклада.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.RolesController.#ctor(MicroMax.Server.Services.Api.RolesApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Управляет ролями пользователей микросклада.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.RolesController.GetAsync(System.Threading.CancellationToken)">
+            <summary>
+            Возвращает список доступных ролей.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.RolesController.CreateAsync(MicroMax.Server.Api.Roles.CreateRoleRequest,System.Threading.CancellationToken)">
+            <summary>
+            Создаёт новую роль.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.RolesController.DeleteAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Удаляет пользовательскую роль.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.StocksController">
+            <summary>
+            Возвращает актуальные остатки по ячейкам хранения.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.StocksController.#ctor(MicroMax.Server.Services.Api.StocksApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Возвращает актуальные остатки по ячейкам хранения.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.StocksController.GetAsync(System.Threading.CancellationToken)">
+            <summary>
+            Возвращает положительные остатки в доступных пользователю складах.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.UsersController">
+            <summary>
+            Возвращает и изменяет пользователей системы.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.UsersController.#ctor(MicroMax.Server.Services.Api.UsersApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Возвращает и изменяет пользователей системы.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.UsersController.GetMeAsync(System.Threading.CancellationToken)">
+            <summary>
+            Возвращает профиль текущего пользователя.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.UsersController.GetAsync(System.Threading.CancellationToken)">
+            <summary>
+            Возвращает список пользователей.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.UsersController.CreateAsync(MicroMax.Server.Api.Users.CreateUserRequest,System.Threading.CancellationToken)">
+            <summary>
+            Создаёт пользователя.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.UsersController.DeleteAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Удаляет пользователя.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.WarehousesController">
+            <summary>
+            Управляет справочником складов.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.WarehousesController.#ctor(MicroMax.Server.Services.Api.WarehousesApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Управляет справочником складов.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.WarehousesController.GetAsync(System.Threading.CancellationToken)">
+            <summary>
+            Возвращает склады, доступные текущему пользователю.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.WarehousesController.CreateAsync(MicroMax.Server.Api.Warehouses.CreateWarehouseRequest,System.Threading.CancellationToken)">
+            <summary>
+            Создаёт новый склад и назначает текущего пользователя администратором склада.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.WarehousesController.UpdateAsync(System.Int32,MicroMax.Server.Api.Warehouses.UpdateWarehouseRequest,System.Threading.CancellationToken)">
+            <summary>
+            Обновляет карточку склада.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.WarehousesController.DeleteAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Удаляет склад.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.WarehouseUsersController">
+            <summary>
+            Управляет назначениями пользователей на склад.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.WarehouseUsersController.#ctor(MicroMax.Server.Services.Api.WarehouseUsersApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Управляет назначениями пользователей на склад.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.WarehouseUsersController.GetAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Возвращает пользователей выбранного склада.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.WarehouseUsersController.CreateAsync(System.Int32,MicroMax.Server.Api.Warehouses.AddWarehouseUserRequest,System.Threading.CancellationToken)">
+            <summary>
+            Добавляет пользователя в выбранный склад.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.WarehouseUsersController.UpdateRoleAsync(System.Int32,System.Int32,MicroMax.Server.Api.Warehouses.UpdateWarehouseUserRoleRequest,System.Threading.CancellationToken)">
+            <summary>
+            Изменяет роль пользователя в выбранном складе.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.WarehouseUsersController.DeleteAsync(System.Int32,System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Удаляет пользователя из выбранного склада.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Controllers.ZonesController">
+            <summary>
+            Возвращает и изменяет зоны хранения.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ZonesController.#ctor(MicroMax.Server.Services.Api.ZonesApiService,MicroMax.Server.Services.Auth.CurrentUserService)">
+            <summary>
+            Возвращает и изменяет зоны хранения.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ZonesController.GetAsync(System.Threading.CancellationToken)">
+            <summary>
+            Возвращает зоны хранения в доступных пользователю складах.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ZonesController.CreateAsync(MicroMax.Server.Api.Zones.CreateStorageZoneRequest,System.Threading.CancellationToken)">
+            <summary>
+            Создаёт новую зону хранения.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Controllers.ZonesController.DeleteAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Удаляет зону хранения.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Models.Barcode">
+            <summary>
+            Физический штрих-код, привязанный к товару или ячейке хранения.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Configuration.AiAssistantOptions">
+            <summary>
+            Настройки командного помощника: адреса моделей, таймауты и период восстановления провайдеров.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Core.AiCommandContext">
+            <summary>
+            Минимальный складской контекст, который передаётся ИИ для распознавания команды.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Assistant.Core.AiCommandContext.#ctor(System.Collections.Generic.IReadOnlyList{MicroMax.Server.Models.Product},System.Collections.Generic.IReadOnlyList{MicroMax.Server.Models.StorageCell})">
+            <summary>
+            Минимальный складской контекст, который передаётся ИИ для распознавания команды.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Core.AiCommandRules">
+            <summary>
+            Набор rule-based правил для mock-провайдера и серверной валидации.
+            Список команд и рисков берётся из реестра.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Assistant.Core.AiCommandRules.#ctor(MicroMax.Server.Services.Assistant.Registry.AiCommandRegistry)">
+            <summary>
+            Набор rule-based правил для mock-провайдера и серверной валидации.
+            Список команд и рисков берётся из реестра.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Execution.AiCommandNormalizer">
+            <summary>
+            Приводит ответ провайдера к серверному контракту и отсеивает неполные
+            или небезопасные команды до отправки на клиент.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Assistant.Execution.AiCommandNormalizer.#ctor(MicroMax.Server.Services.Assistant.Registry.AiCommandRegistry,MicroMax.Server.Services.Assistant.Core.AiCommandRules)">
+            <summary>
+            Приводит ответ провайдера к серверному контракту и отсеивает неполные
+            или небезопасные команды до отправки на клиент.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Execution.AiProviderSelector">
+            <summary>
+            Выбирает провайдера по цепочке Ollama -> OpenAI -> Mock и фиксирует падение реальных провайдеров.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Assistant.Execution.AiProviderSelector.#ctor(System.Collections.Generic.IEnumerable{MicroMax.Server.Services.Assistant.Providers.IAiCommandProvider},MicroMax.Server.Services.Assistant.Recovery.AiProviderAvailability,MicroMax.Server.Services.Assistant.Execution.AiCommandNormalizer,Microsoft.Extensions.Logging.ILogger{MicroMax.Server.Services.Assistant.Execution.AiProviderSelector})">
+            <summary>
+            Выбирает провайдера по цепочке Ollama -> OpenAI -> Mock и фиксирует падение реальных провайдеров.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Prompting.AiCommandPromptBuilder">
+            <summary>
+            Builds a strict prompt for real AI providers from the command registry and
+            the current warehouse context.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Assistant.Prompting.AiCommandPromptBuilder.#ctor(MicroMax.Server.Services.Assistant.Registry.AiCommandRegistry)">
+            <summary>
+            Builds a strict prompt for real AI providers from the command registry and
+            the current warehouse context.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Providers.AiProviderException">
+            <summary>
+            Provider failure with a reason code and elapsed time for fallback logging.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Assistant.Providers.AiProviderException.#ctor(System.String,System.TimeSpan,System.String,System.Exception)">
+            <summary>
+            Provider failure with a reason code and elapsed time for fallback logging.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Providers.ChatClientAiCommandProvider">
+            <summary>
+            Базовый провайдер для моделей, подключенных через Microsoft.Extensions.AI IChatClient.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Assistant.Providers.ChatClientAiCommandProvider.#ctor(Microsoft.Extensions.AI.IChatClient,MicroMax.Server.Services.Assistant.Prompting.AiCommandPromptBuilder,Microsoft.Extensions.Options.IOptions{MicroMax.Server.Services.Assistant.Configuration.AiAssistantOptions},Microsoft.Extensions.Logging.ILogger)">
+            <summary>
+            Базовый провайдер для моделей, подключенных через Microsoft.Extensions.AI IChatClient.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Providers.IAiCommandProvider">
+            <summary>
+            Общий контракт для реальных ИИ-провайдеров и Mock fallback.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Providers.IAiProviderFailurePolicy">
+            <summary>
+            Optional provider policy for deciding whether a failure should mark the provider unavailable.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Providers.MockAiCommandProvider">
+            <summary>
+            Rule-based fallback. Работает без внешней модели и повторяет базовые
+            сценарии помощника, пока недоступны реальные AI-провайдеры.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Assistant.Providers.MockAiCommandProvider.#ctor(MicroMax.Server.Services.Assistant.Core.AiCommandRules)">
+            <summary>
+            Rule-based fallback. Работает без внешней модели и повторяет базовые
+            сценарии помощника, пока недоступны реальные AI-провайдеры.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Recovery.AiProviderAvailability">
+            <summary>
+            Хранит текущее состояние доступности провайдеров между пользовательскими запросами и recovery-проверками.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Recovery.AiProviderRecoveryService">
+            <summary>
+            Фоновая проверка восстановления Ollama/OpenAI, чтобы приложение не оставалось в Mock-режиме навсегда.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Assistant.Recovery.AiProviderRecoveryService.#ctor(System.IServiceProvider,MicroMax.Server.Services.Assistant.Recovery.AiProviderAvailability,Microsoft.Extensions.Options.IOptions{MicroMax.Server.Services.Assistant.Configuration.AiAssistantOptions},Microsoft.Extensions.Logging.ILogger{MicroMax.Server.Services.Assistant.Recovery.AiProviderRecoveryService})">
+            <summary>
+            Фоновая проверка восстановления Ollama/OpenAI, чтобы приложение не оставалось в Mock-режиме навсегда.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Registry.AiCommandDefinition">
+            <summary>
+            Описывает команду помощника в одном месте: имя для ИИ, риск, подсказки и правила обязательных параметров.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Assistant.Registry.AiCommandDefinition.#ctor(System.String,System.String,System.String,System.String,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>
+            Описывает команду помощника в одном месте: имя для ИИ, риск, подсказки и правила обязательных параметров.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Assistant.Registry.AiCommandRegistry">
+            <summary>
+            Единый реестр команд помощника. Им пользуются prompt, mock-распознавание,
+            серверная валидация и API справки.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Auth.AdminPanelAuthorizationHandler">
+            <summary>
+            Проверяет, что пользователь панели активен и имеет роль ADMIN хотя бы на одном складе.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Auth.AdminPanelAuthorizationHandler.#ctor(MicroMax.Server.Data.MicroMaxDbContext)">
+            <summary>
+            Проверяет, что пользователь панели активен и имеет роль ADMIN хотя бы на одном складе.
+            </summary>
+        </member>
+        <member name="T:MicroMax.Server.Services.Auth.AdminPanelSignInService">
+            <summary>
+            Выполняет проверку учетных данных для входа в веб-панель администратора.
+            </summary>
+        </member>
+        <member name="M:MicroMax.Server.Services.Auth.AdminPanelSignInService.#ctor(MicroMax.Server.Data.MicroMaxDbContext,Microsoft.AspNetCore.Identity.IPasswordHasher{MicroMax.Server.Models.AppUser})">
+            <summary>
+            Выполняет проверку учетных данных для входа в веб-панель администратора.
+            </summary>
+        </member>
+    </members>
+</doc>

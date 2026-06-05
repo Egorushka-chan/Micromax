@@ -54,25 +54,19 @@ class AiAssistantViewModel(
         viewModelScope.launch {
             uiState = uiState.copy(isProcessing = true)
             val result = runCatching {
-                withContext(Dispatchers.IO) { apiClient.confirmAssistant(command.commandId).toUiResult(command.commandType) }
-            }.getOrElse {
-                if (it is UnauthorizedException) {
-                    uiState = uiState.copy(
-                        isProcessing = false,
-                        pendingCommand = null,
-                        requiresReauthentication = true,
-                        lastResult = AiAssistantResult(false, it.message ?: "Сессия истекла. Войдите снова."),
-                        messages = uiState.messages + AiChatMessage(it.message ?: "Сессия истекла. Войдите снова.", false)
-                    )
+                withContext(Dispatchers.IO) { apiClient.confirmAssistant(command.commandId).toUiResult(command) }
+            }.getOrElse { error ->
+                if (handleUnauthorizedDuringAction(error)) {
                     return@launch
                 }
 
-                AiAssistantResult(false, it.message ?: "Не удалось подтвердить команду.")
+                AiAssistantResult(false, error.message ?: "Не удалось подтвердить команду.")
             }
 
             uiState = uiState.copy(
                 isProcessing = false,
                 pendingCommand = null,
+                clarificationCommand = null,
                 lastResult = result,
                 messages = uiState.messages + AiChatMessage(result.message, false)
             )
@@ -80,11 +74,32 @@ class AiAssistantViewModel(
     }
 
     fun rejectPending() {
-        uiState = uiState.copy(
-            pendingCommand = null,
-            lastResult = AiAssistantResult(success = true, message = "Команда отменена."),
-            messages = uiState.messages + AiChatMessage("Команда отменена.", false)
-        )
+        cancelPendingCommand("Команда отменена.", "Нет ожидающей команды для отмены.")
+    }
+
+    fun chooseClarification(choiceId: String) {
+        val command = uiState.clarificationCommand ?: return
+        viewModelScope.launch {
+            uiState = uiState.copy(isProcessing = true, lastResult = null)
+
+            val response = runCatching {
+                withContext(Dispatchers.IO) { apiClient.clarifyAssistant(command.commandId, choiceId).toUiCommand() }
+            }.getOrElse { error ->
+                if (handleUnauthorizedDuringAction(error)) {
+                    return@launch
+                }
+
+                val result = AiAssistantResult(false, error.message ?: "Не удалось уточнить команду.")
+                uiState = uiState.copy(
+                    isProcessing = false,
+                    lastResult = result,
+                    messages = uiState.messages + AiChatMessage(result.message, false)
+                )
+                return@launch
+            }
+
+            applyAssistantResponse(response)
+        }
     }
 
     private fun submit(text: String) {
@@ -103,51 +118,128 @@ class AiAssistantViewModel(
 
             val response = runCatching {
                 withContext(Dispatchers.IO) { apiClient.interpretAssistant(text).toUiCommand() }
-            }.getOrElse {
-                if (it is UnauthorizedException) {
-                    uiState = uiState.copy(
-                        isProcessing = false,
-                        pendingCommand = null,
-                        requiresReauthentication = true,
-                        lastResult = AiAssistantResult(false, it.message ?: "Сессия истекла. Войдите снова."),
-                        messages = uiState.messages + AiChatMessage(it.message ?: "Сессия истекла. Войдите снова.", false)
-                    )
+            }.getOrElse { error ->
+                if (handleUnauthorizedDuringAction(error)) {
                     return@launch
                 }
 
-                val result = AiAssistantResult(false, it.message ?: "Не удалось обработать команду.")
+                val result = AiAssistantResult(false, error.message ?: "Не удалось обработать команду.")
                 uiState = uiState.copy(
                     isProcessing = false,
-                    pendingCommand = null,
                     lastResult = result,
                     messages = uiState.messages + AiChatMessage(result.message, false)
                 )
                 return@launch
             }
 
-            val message = response.clarificationQuestion ?: response.summary
-            uiState = when {
-                response.requiresConfirmation -> uiState.copy(
-                    isProcessing = false,
-                    pendingCommand = response,
-                    messages = uiState.messages + AiChatMessage("Команда требует подтверждения. Проверьте карточку ниже.", false)
+            if (response.mode.equals("Command", ignoreCase = true) &&
+                response.commandType.equals("cancel", ignoreCase = true)
+            ) {
+                cancelPendingCommand(
+                    successMessage = response.summary.ifBlank { "Команда отменена." },
+                    missingMessage = "Нет ожидающей команды для отмены."
                 )
-
-                response.mode.equals("Clarification", ignoreCase = true) -> uiState.copy(
-                    isProcessing = false,
-                    pendingCommand = null,
-                    lastResult = AiAssistantResult(false, message, response.choices.map { it.label }),
-                    messages = uiState.messages + AiChatMessage(message, false)
-                )
-
-                else -> uiState.copy(
-                    isProcessing = false,
-                    pendingCommand = null,
-                    lastResult = AiAssistantResult(true, message, navigationTarget = response.commandType.toNavigationTarget()),
-                    messages = uiState.messages + AiChatMessage(message, false)
-                )
+                return@launch
             }
+
+            applyAssistantResponse(response)
         }
+    }
+
+    private fun applyAssistantResponse(response: AiAssistantCommand) {
+        val message = response.clarificationQuestion ?: response.summary
+        uiState = when {
+            response.requiresConfirmation -> uiState.copy(
+                isProcessing = false,
+                pendingCommand = response,
+                clarificationCommand = null,
+                lastResult = null,
+                messages = uiState.messages + AiChatMessage("Команда требует подтверждения. Проверьте карточку ниже.", false)
+            )
+
+            response.mode.equals("Clarification", ignoreCase = true) -> uiState.copy(
+                isProcessing = false,
+                pendingCommand = null,
+                clarificationCommand = response.takeIf { it.choices.isNotEmpty() },
+                lastResult = AiAssistantResult(
+                    success = false,
+                    message = message,
+                    isClarification = true
+                ),
+                messages = uiState.messages + AiChatMessage(message, false)
+            )
+
+            else -> uiState.copy(
+                isProcessing = false,
+                pendingCommand = null,
+                clarificationCommand = null,
+                lastResult = AiAssistantResult(
+                    success = true,
+                    message = message,
+                    clientAction = response.toClientAction()
+                ),
+                messages = uiState.messages + AiChatMessage(message, false)
+            )
+        }
+    }
+
+    private fun cancelPendingCommand(successMessage: String, missingMessage: String) {
+        val command = uiState.pendingCommand ?: uiState.clarificationCommand
+        if (command == null) {
+            val result = AiAssistantResult(success = true, message = missingMessage)
+            uiState = uiState.copy(
+                isProcessing = false,
+                lastResult = result,
+                messages = uiState.messages + AiChatMessage(result.message, false)
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            uiState = uiState.copy(isProcessing = true)
+            val result = runCatching {
+                withContext(Dispatchers.IO) { apiClient.confirmAssistant(command.commandId, confirmed = false) }
+            }.fold(
+                onSuccess = { response ->
+                    AiAssistantResult(
+                        success = response.success,
+                        message = response.message.ifBlank { successMessage },
+                        details = response.details
+                    )
+                },
+                onFailure = { error ->
+                    if (handleUnauthorizedDuringAction(error)) {
+                        return@launch
+                    }
+
+                    AiAssistantResult(false, error.message ?: "Не удалось отменить команду.")
+                }
+            )
+
+            uiState = uiState.copy(
+                isProcessing = false,
+                pendingCommand = null,
+                clarificationCommand = null,
+                lastResult = result,
+                messages = uiState.messages + AiChatMessage(result.message, false)
+            )
+        }
+    }
+
+    private fun handleUnauthorizedDuringAction(error: Throwable): Boolean {
+        if (error !is UnauthorizedException) {
+            return false
+        }
+
+        uiState = uiState.copy(
+            isProcessing = false,
+            pendingCommand = null,
+            clarificationCommand = null,
+            requiresReauthentication = true,
+            lastResult = AiAssistantResult(false, error.message ?: "Сессия истекла. Войдите снова."),
+            messages = uiState.messages + AiChatMessage(error.message ?: "Сессия истекла. Войдите снова.", false)
+        )
+        return true
     }
 
     private fun loadCommandsIfNeeded() {
@@ -159,8 +251,8 @@ class AiAssistantViewModel(
             uiState = uiState.copy(isLoadingCommands = true)
             val definitions = runCatching {
                 withContext(Dispatchers.IO) { apiClient.loadAssistantCommands().map { it.toUiDefinition() } }
-            }.getOrElse {
-                if (it is UnauthorizedException) {
+            }.getOrElse { error ->
+                if (error is UnauthorizedException) {
                     uiState = uiState.copy(
                         isLoadingCommands = false,
                         requiresReauthentication = true
@@ -198,9 +290,15 @@ private fun AssistantCommandDto.toUiCommand(): AiAssistantCommand {
         provider = provider,
         commandType = commandType,
         riskLevel = riskLevel,
+        productId = productId,
+        sourceCellId = sourceCellId,
+        targetCellId = targetCellId,
+        quantity = quantity,
+        minQuantity = minQuantity,
         summary = summary,
         requiresConfirmation = requiresConfirmation,
         clarificationQuestion = clarificationQuestion,
+        clarificationTarget = clarificationTarget,
         choices = choices.map { it.toUiChoice() }
     )
 }
@@ -219,27 +317,101 @@ private fun AssistantCommandDefinitionDto.toUiDefinition(): AiAssistantCommandDe
     )
 }
 
-private fun AssistantCommandResultDto.toUiResult(commandType: String): AiAssistantResult {
+private fun AssistantCommandResultDto.toUiResult(command: AiAssistantCommand?): AiAssistantResult {
     return AiAssistantResult(
         success = success,
         message = message,
         details = details,
-        navigationTarget = commandType.toNavigationTarget()
+        clientAction = command?.toClientAction()
     )
 }
 
-private fun String.toNavigationTarget(): AiAssistantNavigationTarget? = when (this) {
-    "open_products",
-    "find_product",
-    "low_stock",
-    "zero_stock",
-    "create_product",
-    "update_min_stock" -> AiAssistantNavigationTarget.Products
+private fun AiAssistantCommand.toClientAction(): AiAssistantClientAction? {
+    return commandType.toClientAction(
+        productId = productId,
+        sourceCellId = sourceCellId,
+        targetCellId = targetCellId,
+        quantity = quantity,
+        minQuantity = minQuantity
+    )
+}
 
-    "move_product",
-    "write_off_product",
+private fun String.toClientAction(
+    productId: Int?,
+    sourceCellId: Int?,
+    targetCellId: Int?,
+    quantity: Double?,
+    minQuantity: Double?
+): AiAssistantClientAction? = when (this) {
+    "open_products" -> AiAssistantClientAction(
+        commandType = this,
+        itemsFilter = AiAssistantItemsFilter.Available
+    )
+
+    "find_product" -> AiAssistantClientAction(
+        commandType = this,
+        productId = productId,
+        itemsFilter = AiAssistantItemsFilter.Available
+    )
+
+    "low_stock" -> AiAssistantClientAction(
+        commandType = this,
+        itemsFilter = AiAssistantItemsFilter.LowStock
+    )
+
+    "zero_stock" -> AiAssistantClientAction(
+        commandType = this,
+        itemsFilter = AiAssistantItemsFilter.ZeroStock
+    )
+
+    "create_product" -> AiAssistantClientAction(
+        commandType = this,
+        itemsFilter = AiAssistantItemsFilter.Available
+    )
+
+    "update_min_stock" -> AiAssistantClientAction(
+        commandType = this,
+        productId = productId,
+        minQuantity = minQuantity,
+        itemsFilter = AiAssistantItemsFilter.Available
+    )
+
+    "move_product" -> AiAssistantClientAction(
+        commandType = this,
+        productId = productId,
+        sourceCellId = sourceCellId,
+        targetCellId = targetCellId,
+        quantity = quantity,
+        operationType = AiAssistantOperationType.Move
+    )
+
+    "write_off_product" -> AiAssistantClientAction(
+        commandType = this,
+        productId = productId,
+        sourceCellId = sourceCellId,
+        quantity = quantity,
+        operationType = AiAssistantOperationType.WriteOff
+    )
+
     "create_receipt",
-    "post_receipt" -> AiAssistantNavigationTarget.Operations
+    "post_receipt" -> AiAssistantClientAction(
+        commandType = this,
+        productId = productId,
+        targetCellId = targetCellId,
+        quantity = quantity,
+        operationType = AiAssistantOperationType.Receive
+    )
+
+    "warehouse_summary",
+    "help",
+    "cancel" -> AiAssistantClientAction(
+        commandType = this,
+        productId = productId,
+        sourceCellId = sourceCellId,
+        targetCellId = targetCellId,
+        quantity = quantity,
+        minQuantity = minQuantity
+    )
 
     else -> null
 }

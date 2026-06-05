@@ -6,7 +6,8 @@ using MicroMax.Server.Services.Assistant.Registry;
 namespace MicroMax.Server.Services.Assistant.Core;
 
 /// <summary>
-/// Набор rule-based правил: используется Mock-провайдером и серверной валидацией, но список команд берёт из реестра.
+/// Набор rule-based правил для mock-провайдера и серверной валидации.
+/// Список команд и рисков берётся из реестра.
 /// </summary>
 public sealed class AiCommandRules(AiCommandRegistry commandRegistry)
 {
@@ -117,7 +118,7 @@ public sealed class AiCommandRules(AiCommandRegistry commandRegistry)
 
     private static List<string> MeaningfulTokens(string text)
     {
-        return Regex.Split(text.ToLowerInvariant(), @"[^A-Za-zА-Яа-я0-9_-]+")
+        return Regex.Split(text.ToLowerInvariant(), @"[^\p{L}\p{N}_\-]+")
             .Where(token => token.Length >= 3 && !StopWords.Contains(token) && !decimal.TryParse(token, out _))
             .ToList();
     }

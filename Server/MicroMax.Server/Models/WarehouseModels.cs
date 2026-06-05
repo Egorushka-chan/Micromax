@@ -149,6 +149,7 @@ public sealed class AssistantCommand
     public bool RequiresConfirmation { get; set; }
     public string Summary { get; set; } = string.Empty;
     public string? ClarificationQuestion { get; set; }
+    public string? ClarificationTarget { get; set; }
     public List<AssistantChoice> Choices { get; set; } = [];
 }
 public sealed record AssistantChoice(string Id, string Label, string Kind);

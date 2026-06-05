@@ -1,7 +1,8 @@
 namespace MicroMax.Server.Services.Assistant.Registry;
 
 /// <summary>
-/// Единый реестр команд командного интерфейса. Prompt, mock-распознавание, валидация и API справки берут данные отсюда.
+/// Единый реестр команд помощника. Им пользуются prompt, mock-распознавание,
+/// серверная валидация и API справки.
 /// </summary>
 public sealed class AiCommandRegistry
 {
@@ -42,7 +43,7 @@ public sealed class AiCommandRegistry
         new("post_receipt", "Провести поступление", "Увеличение остатка в целевой ячейке.", "High", true, false, true, true, true,
             ["Проведи поступление 10 GLV-001 в A-1"],
             ["проведи поступ", "провести поступ", "прими", "приём", "прием"]),
-        new("cancel", "Отменить команду", "Отмена ожидающей подтверждения команды.", "None", false, false, false, false, false,
+        new("cancel", "Отменить команду", "Отмена ожидающей команды или уточнения.", "None", false, false, false, false, false,
             ["Отмени команду"],
             ["отмени", "отменить", "стоп"]),
         new("help", "Показать доступные команды", "Справка по возможностям помощника.", "None", false, false, false, false, false,

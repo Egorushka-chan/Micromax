@@ -43,11 +43,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.bezborodov.micromax.data.WarehouseSnapshot
 import com.bezborodov.micromax.ui.components.Accent
 import com.bezborodov.micromax.ui.components.AccentDark
 import com.bezborodov.micromax.ui.components.ScreenBg
 import com.bezborodov.micromax.ui.components.SearchBorder
 import com.bezborodov.micromax.ui.components.TextMuted
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToLong
 
 @Composable
 fun AiCommandButton(
@@ -72,11 +76,13 @@ fun AiCommandButton(
 @Composable
 fun AiAssistantOverlay(
     state: AiAssistantUiState,
+    snapshot: WarehouseSnapshot,
     onClose: () -> Unit,
     onInputChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onPromptClick: (String) -> Unit,
     onConfirm: () -> Unit,
+    onClarificationChoice: (String) -> Unit,
     onCancelPending: () -> Unit
 ) {
     if (!state.isOpen) {
@@ -124,8 +130,16 @@ fun AiAssistantOverlay(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("ИИ-помощник MicroMax", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Команды выполняются по правилам MVP", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+                        Text(
+                            text = "ИИ-помощник MicroMax",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Команды выполняются по правилам MVP",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextMuted
+                        )
                     }
                     IconButton(onClick = onClose) {
                         Icon(Icons.Outlined.Close, contentDescription = "Закрыть")
@@ -135,7 +149,7 @@ fun AiAssistantOverlay(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(260.dp),
+                        .height(300.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (state.messages.isEmpty()) {
@@ -146,9 +160,11 @@ fun AiAssistantOverlay(
                             )
                         }
                     }
+
                     items(state.messages) { message ->
                         AiMessageBubble(text = message.text, fromUser = message.fromUser)
                     }
+
                     state.pendingCommand?.let { command ->
                         item {
                             AiCommandPreviewCard(command = command)
@@ -162,16 +178,46 @@ fun AiAssistantOverlay(
                             )
                         }
                     }
-                    state.lastResult?.let { result ->
+
+                    state.clarificationCommand?.let { command ->
                         item {
-                            AiCommandResultCard(result = result)
+                            AiCommandPreviewCard(
+                                command = command,
+                                title = "Уточнение команды"
+                            )
+                        }
+                        item {
+                            AiClarificationCard(
+                                command = command,
+                                isProcessing = state.isProcessing,
+                                onChoiceClick = onClarificationChoice,
+                                onCancel = onCancelPending
+                            )
+                        }
+                    }
+
+                    val result = state.lastResult
+                    if (result != null && !(state.clarificationCommand != null && result.isClarification)) {
+                        item {
+                            AiCommandResultCard(
+                                result = result,
+                                snapshot = snapshot,
+                                commandDefinitions = state.commandDefinitions
+                            )
                         }
                     }
                 }
 
-                if (state.messages.size <= 1 && state.pendingCommand == null) {
+                if (state.messages.size <= 1 &&
+                    state.pendingCommand == null &&
+                    state.clarificationCommand == null
+                ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Быстрые подсказки", style = MaterialTheme.typography.labelLarge, color = TextMuted)
+                        Text(
+                            text = "Быстрые подсказки",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = TextMuted
+                        )
                         state.quickPrompts.forEach { prompt ->
                             OutlinedButton(
                                 onClick = { onPromptClick(prompt) },
@@ -258,17 +304,36 @@ fun AiMessageBubble(
 }
 
 @Composable
-fun AiCommandPreviewCard(command: AiAssistantCommand) {
+fun AiCommandPreviewCard(
+    command: AiAssistantCommand,
+    title: String = "Предпросмотр команды"
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Предпросмотр команды", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
             Text(command.summary, style = MaterialTheme.typography.bodyLarge)
-            Text("Провайдер: ${command.provider}", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
-            Text("Риск: ${command.riskLevel.label()}", style = MaterialTheme.typography.bodyMedium, color = command.riskLevel.color())
+            Text(
+                text = "Провайдер: ${command.provider}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextMuted
+            )
+            Text(
+                text = "Риск: ${command.riskLevel.label()}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = command.riskLevel.color()
+            )
+            CommandParameterRows(command)
         }
     }
 }
@@ -289,7 +354,11 @@ fun AiConfirmationCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.WarningAmber, contentDescription = null, tint = Color(0xFFD07A00))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Нужно подтверждение", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "Нужно подтверждение",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
             }
             Text(
                 text = "Команда может изменить данные микросклада. После подтверждения действие будет отправлено на сервер.",
@@ -318,21 +387,92 @@ fun AiConfirmationCard(
 }
 
 @Composable
-fun AiCommandResultCard(result: AiAssistantResult) {
+fun AiClarificationCard(
+    command: AiAssistantCommand,
+    isProcessing: Boolean,
+    onChoiceClick: (String) -> Unit,
+    onCancel: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = if (result.success) Color.White else Color(0xFFFFEEEE))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF6F7FF))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = command.clarificationQuestion ?: "Выберите уточнение для продолжения.",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            if (command.choices.isEmpty()) {
+                Text(
+                    text = "Подходящих вариантов пока нет. Попробуйте переформулировать команду.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMuted
+                )
+            } else {
+                command.choices.forEach { choice ->
+                    OutlinedButton(
+                        onClick = { onChoiceClick(choice.id) },
+                        enabled = !isProcessing,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(choice.label)
+                    }
+                }
+            }
+
+            OutlinedButton(
+                onClick = onCancel,
+                enabled = !isProcessing,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Отменить команду")
+            }
+        }
+    }
+}
+
+@Composable
+fun AiCommandResultCard(
+    result: AiAssistantResult,
+    snapshot: WarehouseSnapshot,
+    commandDefinitions: List<AiAssistantCommandDefinition>
+) {
+    val details = buildResultDetails(
+        result = result,
+        snapshot = snapshot,
+        commandDefinitions = commandDefinitions
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                result.isClarification -> Color(0xFFF6F7FF)
+                result.success -> Color.White
+                else -> Color(0xFFFFEEEE)
+            }
+        )
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = if (result.success) "Результат" else "Нужно уточнение",
+                text = when {
+                    result.isClarification -> "Нужно уточнение"
+                    result.success -> "Результат"
+                    else -> "Ошибка"
+                },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Text(result.message, style = MaterialTheme.typography.bodyMedium)
-            result.details.take(8).forEach { detail ->
-                Text("• $detail", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+            details.take(8).forEach { detail ->
+                Text("- $detail", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
             }
         }
     }
@@ -342,12 +482,70 @@ fun AiCommandResultCard(result: AiAssistantResult) {
 private fun CommandParameterRows(command: AiAssistantCommand) {
     val rows = listOfNotNull(
         "Тип команды: ${command.commandType}",
-        "Источник: ${command.provider}",
-        command.clarificationQuestion?.let { "Уточнение: $it" }
+        command.productId?.let { "Товар ID: $it" },
+        command.sourceCellId?.let { "Исходная ячейка ID: $it" },
+        command.targetCellId?.let { "Целевая ячейка ID: $it" },
+        command.quantity?.let { "Количество: ${it.formatQuantity()}" },
+        command.minQuantity?.let { "Мин. остаток: ${it.formatQuantity()}" },
+        command.clarificationTarget?.let { "Нужно уточнить: ${it.clarificationLabel()}" }
     )
+
     rows.forEach { row ->
         Text(row, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF333333))
     }
+}
+
+private fun buildResultDetails(
+    result: AiAssistantResult,
+    snapshot: WarehouseSnapshot,
+    commandDefinitions: List<AiAssistantCommandDefinition>
+): List<String> {
+    return when (result.clientAction?.commandType) {
+        "help" -> {
+            commandDefinitions
+                .sortedBy { it.title.lowercase(Locale.getDefault()) }
+                .map { definition ->
+                    buildString {
+                        append(definition.title)
+                        append(": ")
+                        append(definition.description)
+                    }
+                }
+                .ifEmpty { result.details }
+        }
+
+        "warehouse_summary" -> buildWarehouseSummary(snapshot)
+        else -> result.details
+    }
+}
+
+private fun buildWarehouseSummary(snapshot: WarehouseSnapshot): List<String> {
+    val stockBySku = snapshot.stocks.groupBy { it.sku }.mapValues { (_, items) ->
+        items.sumOf { it.quantity }
+    }
+    val lowStockCount = snapshot.products.count { product ->
+        val quantity = stockBySku[product.sku] ?: 0.0
+        quantity > 0.0 && quantity <= product.minQuantity
+    }
+    val zeroStockCount = snapshot.products.count { product ->
+        (stockBySku[product.sku] ?: 0.0) <= 0.0
+    }
+    val activeCellCount = snapshot.stocks
+        .filter { it.quantity > 0.0 }
+        .map { it.cellCode }
+        .distinct()
+        .size
+    val totalQuantity = snapshot.stocks.sumOf { it.quantity }
+
+    return listOf(
+        "Номенклатура: ${snapshot.products.size}",
+        "Ячейки хранения: ${snapshot.cells.size}",
+        "Активные ячейки с остатком: $activeCellCount",
+        "Общий остаток: ${totalQuantity.formatQuantity()}",
+        "Позиций с низким остатком: $lowStockCount",
+        "Позиций с нулевым остатком: $zeroStockCount",
+        "Операций в журнале: ${snapshot.operations.size}"
+    )
 }
 
 private fun String.label(): String = when (this) {
@@ -356,7 +554,7 @@ private fun String.label(): String = when (this) {
     "Medium" -> "средний"
     "High" -> "высокий"
     "Critical" -> "критический"
-    else -> this.ifBlank { "не указан" }
+    else -> ifBlank { "не указан" }
 }
 
 private fun String.color(): Color = when (this) {
@@ -366,4 +564,21 @@ private fun String.color(): Color = when (this) {
     "High" -> Color(0xFFD35C46)
     "Critical" -> Color(0xFFB00020)
     else -> TextMuted
+}
+
+private fun String.clarificationLabel(): String = when (this) {
+    "Product" -> "товар"
+    "SourceCell" -> "исходную ячейку"
+    "TargetCell" -> "целевую ячейку"
+    "Command" -> "тип команды"
+    else -> this
+}
+
+private fun Double.formatQuantity(): String {
+    val rounded = roundToLong().toDouble()
+    return if (abs(this - rounded) < 0.000001) {
+        rounded.toLong().toString()
+    } else {
+        String.format(Locale.US, "%.2f", this).trimEnd('0').trimEnd('.')
+    }
 }

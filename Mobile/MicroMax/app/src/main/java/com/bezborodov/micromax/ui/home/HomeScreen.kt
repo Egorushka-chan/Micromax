@@ -34,7 +34,8 @@ import com.bezborodov.micromax.data.CellDto
 import com.bezborodov.micromax.data.MicroMaxApiClient
 import com.bezborodov.micromax.data.ProductDto
 import com.bezborodov.micromax.data.UnauthorizedException
-import com.bezborodov.micromax.ui.assistant.AiAssistantNavigationTarget
+import com.bezborodov.micromax.ui.assistant.AiAssistantItemsFilter
+import com.bezborodov.micromax.ui.assistant.AiAssistantOperationType
 import com.bezborodov.micromax.ui.assistant.AiAssistantOverlay
 import com.bezborodov.micromax.ui.assistant.AiAssistantViewModel
 import com.bezborodov.micromax.ui.assistant.AiAssistantViewModelFactory
@@ -50,6 +51,7 @@ import com.bezborodov.micromax.ui.components.MessageBanner
 import com.bezborodov.micromax.ui.components.ScreenBg
 import com.bezborodov.micromax.ui.items.ItemsScreen
 import com.bezborodov.micromax.ui.items.ItemsStartDestination
+import com.bezborodov.micromax.ui.items.ItemsStockFilter
 import com.bezborodov.micromax.ui.operations.OperationType
 import com.bezborodov.micromax.ui.operations.OperationsScreen
 import com.bezborodov.micromax.ui.scanner.BarcodeScannerScreen
@@ -101,6 +103,7 @@ fun HomeScreen(
     var itemsStartDestination by remember(userId) { mutableStateOf(ItemsStartDestination.List) }
     var pendingOperationType by remember(userId) { mutableStateOf<OperationType?>(null) }
     var requestedProductId by remember(userId) { mutableStateOf<Int?>(null) }
+    var requestedItemsFilter by remember(userId) { mutableStateOf<ItemsStockFilter?>(null) }
     var requestedCellId by remember(userId) { mutableStateOf<Int?>(null) }
     var barcodeMessage by remember(userId) { mutableStateOf<String?>(null) }
     var unresolvedBarcode by remember(userId) { mutableStateOf<ScannedBarcode?>(null) }
@@ -132,6 +135,7 @@ fun HomeScreen(
         when (entityType) {
             "Product" -> {
                 requestedProductId = entityId
+                requestedItemsFilter = ItemsStockFilter.Available
                 requestedCellId = null
                 itemsStartDestination = ItemsStartDestination.List
                 selectedTab = BottomTab.Items
@@ -209,6 +213,7 @@ fun HomeScreen(
                     bindingTarget = null
                     unresolvedBarcode = null
                     requestedProductId = product.id
+                    requestedItemsFilter = ItemsStockFilter.Available
                     requestedCellId = null
                     itemsStartDestination = ItemsStartDestination.List
                     selectedTab = BottomTab.Items
@@ -279,21 +284,63 @@ fun HomeScreen(
 
     LaunchedEffect(assistantState.lastResult) {
         val result = assistantState.lastResult ?: return@LaunchedEffect
-        when (result.navigationTarget) {
-            AiAssistantNavigationTarget.Products -> {
+        val action = result.clientAction
+        when (action?.commandType) {
+            "open_products" -> {
+                requestedProductId = null
+                requestedCellId = null
+                requestedItemsFilter = action?.itemsFilter?.toItemsStockFilter()
+                    ?: ItemsStockFilter.Available
                 itemsStartDestination = ItemsStartDestination.List
                 selectedTab = BottomTab.Items
             }
 
-            AiAssistantNavigationTarget.Operations -> {
+            "find_product" -> {
+                requestedProductId = action?.productId
+                requestedCellId = null
+                requestedItemsFilter = action?.itemsFilter?.toItemsStockFilter()
+                    ?: ItemsStockFilter.Available
+                itemsStartDestination = ItemsStartDestination.List
+                selectedTab = BottomTab.Items
+            }
+
+            "low_stock",
+            "zero_stock" -> {
+                requestedProductId = null
+                requestedCellId = null
+                requestedItemsFilter = action?.itemsFilter?.toItemsStockFilter()
+                itemsStartDestination = ItemsStartDestination.List
+                selectedTab = BottomTab.Items
+            }
+
+            "create_product" -> {
+                requestedProductId = null
+                requestedCellId = null
+                requestedItemsFilter = ItemsStockFilter.Available
+                itemsStartDestination = ItemsStartDestination.List
+                selectedTab = BottomTab.Items
+            }
+
+            "update_min_stock" -> {
+                requestedProductId = action?.productId
+                requestedCellId = null
+                requestedItemsFilter = ItemsStockFilter.Available
+                itemsStartDestination = ItemsStartDestination.List
+                selectedTab = BottomTab.Items
+            }
+
+            "move_product",
+            "write_off_product",
+            "create_receipt",
+            "post_receipt" -> {
                 if (permissions.canExecuteOperations) {
+                    pendingOperationType = action?.operationType?.toOperationType()
                     selectedTab = BottomTab.Transactions
                 }
             }
-
-            null -> Unit
         }
-        if (result.success) {
+
+        if (result.success && action?.commandType?.requiresSnapshotRefresh() == true) {
             viewModel.refreshByPolling()
         }
     }
@@ -384,6 +431,8 @@ fun HomeScreen(
                             onSessionExpired = onSessionExpired,
                             requestedProductId = requestedProductId,
                             onRequestedProductConsumed = { requestedProductId = null },
+                            requestedItemsFilter = requestedItemsFilter,
+                            onRequestedItemsFilterConsumed = { requestedItemsFilter = null },
                             onOpenScanner = ::openScanner,
                             onCreateProduct = viewModel::createProduct,
                             onOpenOperations = { selectedTab = BottomTab.Transactions }
@@ -456,11 +505,13 @@ fun HomeScreen(
 
         AiAssistantOverlay(
             state = assistantState,
+            snapshot = state.snapshot,
             onClose = assistantViewModel::close,
             onInputChange = assistantViewModel::onInputChange,
             onSubmit = assistantViewModel::submitCurrent,
             onPromptClick = assistantViewModel::usePrompt,
             onConfirm = assistantViewModel::confirmPending,
+            onClarificationChoice = assistantViewModel::chooseClarification,
             onCancelPending = assistantViewModel::rejectPending
         )
 
@@ -601,5 +652,33 @@ fun HomeScreen(
             },
             onCancel = { scannerSession = null }
         )
+    }
+}
+
+private fun AiAssistantOperationType.toOperationType(): OperationType {
+    return when (this) {
+        AiAssistantOperationType.Receive -> OperationType.Receive
+        AiAssistantOperationType.WriteOff -> OperationType.WriteOff
+        AiAssistantOperationType.Move -> OperationType.Move
+    }
+}
+
+private fun AiAssistantItemsFilter.toItemsStockFilter(): ItemsStockFilter {
+    return when (this) {
+        AiAssistantItemsFilter.Available -> ItemsStockFilter.Available
+        AiAssistantItemsFilter.LowStock -> ItemsStockFilter.LowStock
+        AiAssistantItemsFilter.ZeroStock -> ItemsStockFilter.ZeroStock
+    }
+}
+
+private fun String.requiresSnapshotRefresh(): Boolean {
+    return when (this) {
+        "create_product",
+        "update_min_stock",
+        "move_product",
+        "write_off_product",
+        "post_receipt" -> true
+
+        else -> false
     }
 }

@@ -106,9 +106,15 @@ data class AssistantCommandDto(
     val provider: String,
     val commandType: String,
     val riskLevel: String,
+    val productId: Int?,
+    val sourceCellId: Int?,
+    val targetCellId: Int?,
+    val quantity: Double?,
+    val minQuantity: Double?,
     val summary: String,
     val requiresConfirmation: Boolean,
     val clarificationQuestion: String?,
+    val clarificationTarget: String?,
     val choices: List<AssistantChoiceDto>
 )
 
@@ -448,9 +454,15 @@ class MicroMaxApiClient(
             provider = response.optString("provider"),
             commandType = response.optString("commandType"),
             riskLevel = response.optString("riskLevel"),
+            productId = response.optNullableInt("productId"),
+            sourceCellId = response.optNullableInt("sourceCellId"),
+            targetCellId = response.optNullableInt("targetCellId"),
+            quantity = response.optNullableDouble("quantity"),
+            minQuantity = response.optNullableDouble("minQuantity"),
             summary = response.optString("summary"),
             requiresConfirmation = response.optBoolean("requiresConfirmation"),
             clarificationQuestion = response.optNullableString("clarificationQuestion"),
+            clarificationTarget = response.optNullableString("clarificationTarget"),
             choices = response.optJSONArray("choices")?.mapObjects {
                 AssistantChoiceDto(
                     id = it.optString("id"),
@@ -461,15 +473,49 @@ class MicroMaxApiClient(
         )
     }
 
-    fun confirmAssistant(commandId: String): AssistantCommandResultDto {
+    fun confirmAssistant(commandId: String, confirmed: Boolean = true): AssistantCommandResultDto {
         val response = postJson("/api/assistant/confirm", JSONObject().apply {
             put("commandId", commandId)
-            put("confirmed", true)
+            put("confirmed", confirmed)
         })
         return AssistantCommandResultDto(
             success = response.optBoolean("success"),
             message = response.optString("message"),
             details = response.optJSONArray("details")?.mapStrings().orEmpty()
+        )
+    }
+
+    fun clarifyAssistant(commandId: String, choiceId: String): AssistantCommandDto {
+        val response = postJson(
+            path = "/api/assistant/clarify",
+            body = JSONObject().apply {
+                put("commandId", commandId)
+                put("choiceId", choiceId)
+            },
+            timeouts = AssistantTimeouts
+        )
+        return AssistantCommandDto(
+            commandId = response.optString("commandId"),
+            mode = response.optString("mode"),
+            provider = response.optString("provider"),
+            commandType = response.optString("commandType"),
+            riskLevel = response.optString("riskLevel"),
+            productId = response.optNullableInt("productId"),
+            sourceCellId = response.optNullableInt("sourceCellId"),
+            targetCellId = response.optNullableInt("targetCellId"),
+            quantity = response.optNullableDouble("quantity"),
+            minQuantity = response.optNullableDouble("minQuantity"),
+            summary = response.optString("summary"),
+            requiresConfirmation = response.optBoolean("requiresConfirmation"),
+            clarificationQuestion = response.optNullableString("clarificationQuestion"),
+            clarificationTarget = response.optNullableString("clarificationTarget"),
+            choices = response.optJSONArray("choices")?.mapObjects {
+                AssistantChoiceDto(
+                    id = it.optString("id"),
+                    label = it.optString("label"),
+                    kind = it.optString("kind")
+                )
+            }.orEmpty()
         )
     }
 
@@ -730,6 +776,10 @@ private fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> {
 
 private fun JSONObject.optNullableInt(name: String): Int? {
     return if (isNull(name)) null else optInt(name)
+}
+
+private fun JSONObject.optNullableDouble(name: String): Double? {
+    return if (isNull(name)) null else optDouble(name)
 }
 
 private fun JSONObject.optNullableString(name: String): String? {

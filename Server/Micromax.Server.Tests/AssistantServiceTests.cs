@@ -1,13 +1,13 @@
 using MicroMax.Server.Data;
 using MicroMax.Server.Models;
 using MicroMax.Server.Services;
-using MicroMax.Server.Services.Auth;
 using MicroMax.Server.Services.Assistant;
 using MicroMax.Server.Services.Assistant.Core;
 using MicroMax.Server.Services.Assistant.Execution;
 using MicroMax.Server.Services.Assistant.Providers;
 using MicroMax.Server.Services.Assistant.Recovery;
 using MicroMax.Server.Services.Assistant.Registry;
+using MicroMax.Server.Services.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -29,6 +29,8 @@ public sealed class AssistantServiceTests
         var result = await service.InterpretAsync(1, "найди перчатки");
 
         Assert.Equal("Clarification", result.Mode);
+        Assert.Equal("find_product", result.CommandType);
+        Assert.Equal("Product", result.ClarificationTarget);
         Assert.Equal(2, result.Choices.Count);
     }
 
@@ -68,6 +70,26 @@ public sealed class AssistantServiceTests
         Assert.Equal("None", result.RiskLevel);
     }
 
+    [Fact]
+    public async Task ClarificationChoiceContinuesOriginalCommand()
+    {
+        await using var db = CreateDb();
+        db.Products.AddRange(
+            new Product { Id = 1, Sku = "GLV-001", Name = "Перчатки рабочие", Unit = "пар" },
+            new Product { Id = 2, Sku = "GLV-002", Name = "Перчатки утепленные", Unit = "пар" });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var clarification = await service.InterpretAsync(1, "найди перчатки");
+
+        var result = await service.ClarifyAsync(1, clarification.CommandId, clarification.Choices[0].Id);
+
+        Assert.Equal("Command", result.Mode);
+        Assert.Equal("find_product", result.CommandType);
+        Assert.Equal(1, result.ProductId);
+        Assert.False(result.RequiresConfirmation);
+    }
+
     private static MicroMaxDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<MicroMaxDbContext>()
@@ -80,6 +102,7 @@ public sealed class AssistantServiceTests
     {
         var registry = new AiCommandRegistry();
         var rules = new AiCommandRules(registry);
+        var normalizer = new AiCommandNormalizer(registry, rules);
         var providers = new IAiCommandProvider[]
         {
             new MockAiCommandProvider(rules)
@@ -87,10 +110,10 @@ public sealed class AssistantServiceTests
         var selector = new AiProviderSelector(
             providers,
             new AiProviderAvailability(),
-            new AiCommandNormalizer(registry, rules),
+            normalizer,
             NullLogger<AiProviderSelector>.Instance);
 
-        return new AssistantService(db, selector, new WarehousePermissionService(db));
+        return new AssistantService(db, selector, new WarehousePermissionService(db), normalizer);
     }
 
     private static void SeedSingleProduct(MicroMaxDbContext db)
@@ -109,6 +132,7 @@ public sealed class AssistantServiceTests
             PasswordHash = "hashed",
             IsActive = true
         };
+
         db.AddRange(warehouse, zone, cell1, cell2, product, role, user);
         db.WarehouseUsers.Add(new WarehouseUser
         {

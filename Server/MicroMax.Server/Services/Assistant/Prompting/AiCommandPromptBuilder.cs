@@ -6,7 +6,8 @@ using MicroMax.Server.Services.Assistant.Registry;
 namespace MicroMax.Server.Services.Assistant.Prompting;
 
 /// <summary>
-/// Формирует prompt для реальных ИИ-провайдеров на основе реестра команд и текущего складского контекста.
+/// Builds a strict prompt for real AI providers from the command registry and
+/// the current warehouse context.
 /// </summary>
 public sealed class AiCommandPromptBuilder(AiCommandRegistry commandRegistry)
 {
@@ -14,24 +15,29 @@ public sealed class AiCommandPromptBuilder(AiCommandRegistry commandRegistry)
     {
         var products = context.Products.Select(x => new { x.Id, x.Name, x.Sku }).ToList();
         var cells = context.Cells.Select(x => new { x.Id, x.Code, x.Name }).ToList();
-        var commandTypes = commandRegistry.Commands.Select(x => x.Type).Append(AiCommandRegistry.Unknown).Distinct().ToList();
+        var commandTypes = commandRegistry.Commands
+            .Select(x => x.Type)
+            .Append(AiCommandRegistry.Unknown)
+            .Distinct()
+            .ToList();
         var risks = commandRegistry.Commands
             .GroupBy(x => x.RiskLevel)
             .ToDictionary(x => x.Key, x => x.Select(command => command.Type).ToList());
 
         var sb = new StringBuilder();
-        sb.AppendLine("Ты командный помощник MicroMax для микросклада.");
-        sb.AppendLine("Верни только JSON без markdown, комментариев и пояснений.");
-        sb.AppendLine("Если команда неоднозначна, не угадывай. Верни mode = Clarification и варианты choices.");
-        sb.AppendLine("Не выполняй операции. Только распознай намерение пользователя.");
-        sb.AppendLine("Команды изменения данных требуют подтверждения на сервере.");
+        sb.AppendLine("You are the MicroMax warehouse command interpreter.");
+        sb.AppendLine("Return JSON only. No markdown, no explanations, no comments.");
+        sb.AppendLine("Do not execute anything. Only interpret the user's intent.");
+        sb.AppendLine("If the intent is ambiguous or some required field is missing, return mode = Clarification.");
+        sb.AppendLine("When clarification is needed, preserve the intended commandType and already known fields.");
+        sb.AppendLine("Commands that change data will be confirmed later on the server.");
         sb.AppendLine();
-        sb.AppendLine("Доступные commandType:");
+        sb.AppendLine("Allowed commandType values:");
         sb.AppendLine(string.Join(", ", commandTypes) + ".");
-        sb.AppendLine("riskLevel: None, Low, Medium, High, Critical.");
-        sb.AppendLine($"Соответствие рисков: {JsonSerializer.Serialize(risks)}.");
+        sb.AppendLine("Allowed riskLevel values: None, Low, Medium, High, Critical.");
+        sb.AppendLine($"Known risks by command: {JsonSerializer.Serialize(risks)}.");
         sb.AppendLine();
-        sb.AppendLine("JSON schema shape:");
+        sb.AppendLine("JSON schema:");
         sb.AppendLine("""
 {
   "mode": "Command|Clarification|Unknown",
@@ -47,23 +53,26 @@ public sealed class AiCommandPromptBuilder(AiCommandRegistry commandRegistry)
   "unit": "string",
   "summary": "string",
   "clarificationQuestion": "string",
+  "clarificationTarget": "Product|SourceCell|TargetCell|Command",
   "choices": [{ "id": "string", "label": "string", "kind": "product|cell|command" }]
 }
 """);
         sb.AppendLine();
-        sb.AppendLine("Правила:");
-        sb.AppendLine("- Для поиска товара, перемещения, списания, поступления и изменения минимального остатка нужен productId.");
-        sb.AppendLine("- Для списания нужна sourceCellId.");
-        sb.AppendLine("- Для перемещения нужны sourceCellId, targetCellId, quantity.");
-        sb.AppendLine("- Для поступления нужна targetCellId и quantity.");
-        sb.AppendLine("- Если подходит несколько товаров или ячеек, верни Clarification с choices.");
-        sb.AppendLine("- Если не хватает количества или ячейки, верни Clarification с вопросом.");
-        sb.AppendLine("- Nullable поля можно не указывать или вернуть null.");
+        sb.AppendLine("Rules:");
+        sb.AppendLine("- Use commandType only from the allowed list.");
+        sb.AppendLine("- For find_product, move_product, write_off_product, post_receipt, create_receipt and update_min_stock, identify the product when possible.");
+        sb.AppendLine("- For move_product you need sourceCellId, targetCellId and quantity.");
+        sb.AppendLine("- For write_off_product you need sourceCellId and quantity.");
+        sb.AppendLine("- For post_receipt you need targetCellId and quantity.");
+        sb.AppendLine("- For create_product identify name, sku, unit and minQuantity when mentioned.");
+        sb.AppendLine("- If several products or cells match, return Clarification with choices.");
+        sb.AppendLine("- If the command itself is unclear, use clarificationTarget = Command.");
+        sb.AppendLine("- Omit unknown optional fields or return null-like empty values.");
         sb.AppendLine();
-        sb.AppendLine($"Описание команд: {JsonSerializer.Serialize(commandRegistry.Commands)}");
-        sb.AppendLine($"Номенклатура: {JsonSerializer.Serialize(products)}");
-        sb.AppendLine($"Ячейки: {JsonSerializer.Serialize(cells)}");
-        sb.AppendLine($"Команда пользователя: {text}");
+        sb.AppendLine($"Command registry: {JsonSerializer.Serialize(commandRegistry.Commands)}");
+        sb.AppendLine($"Products: {JsonSerializer.Serialize(products)}");
+        sb.AppendLine($"Cells: {JsonSerializer.Serialize(cells)}");
+        sb.AppendLine($"User text: {text}");
 
         return sb.ToString();
     }

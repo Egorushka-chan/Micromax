@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace MicroMax.Server.Services.Assistant.Providers;
 
 /// <summary>
-/// Р‘Р°Р·РѕРІС‹Р№ РїСЂРѕРІР°Р№РґРµСЂ РґР»СЏ РјРѕРґРµР»РµР№, РїРѕРґРєР»СЋС‡РµРЅРЅС‹С… С‡РµСЂРµР· Microsoft.Extensions.AI IChatClient.
+/// Базовый провайдер для моделей, подключенных через Microsoft.Extensions.AI IChatClient.
 /// </summary>
 public abstract class ChatClientAiCommandProvider(
     IChatClient chatClient,
@@ -32,7 +32,7 @@ public abstract class ChatClientAiCommandProvider(
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromMilliseconds(_options.HealthTimeoutMs));
-            var response = await chatClient.GetResponseAsync("Р’РµСЂРЅРё С‚РѕР»СЊРєРѕ JSON: {\"ok\":true}", cancellationToken: timeout.Token);
+            var response = await chatClient.GetResponseAsync("Верни только JSON: {\"ok\":true}", cancellationToken: timeout.Token);
             return response.Text.Contains("ok", StringComparison.OrdinalIgnoreCase);
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
@@ -95,7 +95,7 @@ public abstract class ChatClientAiCommandProvider(
             return trimmed[start..(end + 1)];
         }
 
-        throw new InvalidOperationException("РР РЅРµ РІРµСЂРЅСѓР» JSON-РєРѕРјР°РЅРґСѓ.");
+        throw new InvalidOperationException("ИИ не вернул JSON-команду.");
     }
 
     private static AssistantCommand DeserializeCommand(string text, TimeSpan elapsed)

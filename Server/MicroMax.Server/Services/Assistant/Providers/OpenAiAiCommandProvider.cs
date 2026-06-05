@@ -32,7 +32,7 @@ public sealed class OpenAiAiCommandProvider(
             var client = CreateClient();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromMilliseconds(_options.HealthTimeoutMs));
-            var response = await client.GetResponseAsync("Р’РµСЂРЅРё С‚РѕР»СЊРєРѕ JSON: {\"ok\":true}", cancellationToken: timeout.Token);
+            var response = await client.GetResponseAsync("Верни только JSON: {\"ok\":true}", cancellationToken: timeout.Token);
             return response.Text.Contains("ok", StringComparison.OrdinalIgnoreCase);
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
@@ -108,7 +108,7 @@ public sealed class OpenAiAiCommandProvider(
             return trimmed[start..(end + 1)];
         }
 
-        throw new InvalidOperationException("РР РЅРµ РІРµСЂРЅСѓР» JSON-РєРѕРјР°РЅРґСѓ.");
+        throw new InvalidOperationException("ИИ не вернул JSON-команду.");
     }
 
     private static AssistantCommand DeserializeCommand(string text, TimeSpan elapsed)

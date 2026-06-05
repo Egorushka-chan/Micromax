@@ -5,7 +5,8 @@ using MicroMax.Server.Services.Assistant.Registry;
 namespace MicroMax.Server.Services.Assistant.Execution;
 
 /// <summary>
-/// Приводит ответ ИИ к серверному контракту и отсекает неполные или небезопасные команды.
+/// Приводит ответ провайдера к серверному контракту и отсеивает неполные
+/// или небезопасные команды до отправки на клиент.
 /// </summary>
 public sealed class AiCommandNormalizer(AiCommandRegistry commandRegistry, AiCommandRules commandRules)
 {
@@ -15,12 +16,12 @@ public sealed class AiCommandNormalizer(AiCommandRegistry commandRegistry, AiCom
         command.Provider = provider.ToString();
         command.Mode = NormalizeMode(command.Mode, command.CommandType);
         command.CommandType = commandRegistry.NormalizeType(command.CommandType);
+        command.ClarificationTarget = NormalizeClarificationTarget(command.ClarificationTarget, command.Choices);
         command.RiskLevel = commandRules.RiskFor(command.CommandType);
         command.RequiresConfirmation = command.Mode == "Command" && command.RiskLevel is "Medium" or "High" or "Critical";
 
         if (command.Mode == "Clarification")
         {
-            command.CommandType = "unknown";
             command.RiskLevel = "None";
             command.RequiresConfirmation = false;
             command.Summary = command.ClarificationQuestion ?? command.Summary;
@@ -30,6 +31,7 @@ public sealed class AiCommandNormalizer(AiCommandRegistry commandRegistry, AiCom
         var validation = Validate(command, context);
         if (validation is not null)
         {
+            validation.Provider = "Server";
             return validation;
         }
 
@@ -48,7 +50,8 @@ public sealed class AiCommandNormalizer(AiCommandRegistry commandRegistry, AiCom
             return "Clarification";
         }
 
-        if (string.Equals(mode, "Unknown", StringComparison.OrdinalIgnoreCase) || string.Equals(commandType, "unknown", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(mode, "Unknown", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(commandType, "unknown", StringComparison.OrdinalIgnoreCase))
         {
             return "Unknown";
         }
@@ -60,70 +63,123 @@ public sealed class AiCommandNormalizer(AiCommandRegistry commandRegistry, AiCom
     {
         if (command.Mode == "Unknown" || command.CommandType == "unknown")
         {
-            return Clarification("Команда не распознана. Можно спросить: «Покажи доступные команды».", []);
+            return Clarification(
+                command,
+                "Команда не распознана. Можно спросить: «Покажи доступные команды».",
+                [],
+                "Command");
         }
 
         if (command.ProductId is not null && context.Products.All(x => x.Id != command.ProductId))
         {
-            return Clarification("Товар из команды не найден в справочнике. Уточните название или SKU.", []);
+            return Clarification(
+                command,
+                "Товар из команды не найден в справочнике. Уточните название или SKU.",
+                context.Products.Take(6).Select(x => new AssistantChoice(x.Id.ToString(), $"{x.Name} · {x.Sku}", "product")).ToList(),
+                "Product");
         }
 
         if (command.SourceCellId is not null && context.Cells.All(x => x.Id != command.SourceCellId))
         {
-            return Clarification("Исходная ячейка не найдена. Уточните код ячейки.", []);
+            return Clarification(
+                command,
+                "Исходная ячейка не найдена. Уточните код ячейки.",
+                CellChoices(context),
+                "SourceCell");
         }
 
         if (command.TargetCellId is not null && context.Cells.All(x => x.Id != command.TargetCellId))
         {
-            return Clarification("Целевая ячейка не найдена. Уточните код ячейки.", []);
+            return Clarification(
+                command,
+                "Целевая ячейка не найдена. Уточните код ячейки.",
+                CellChoices(context),
+                "TargetCell");
         }
 
         var definition = commandRegistry.Find(command.CommandType);
         if (definition?.RequiresProduct == true && command.ProductId is null)
         {
             return Clarification(
+                command,
                 "Уточните товар: укажите название или SKU.",
-                context.Products.Take(6).Select(x => new AssistantChoice(x.Id.ToString(), $"{x.Name} · {x.Sku}", "product")).ToList());
+                context.Products.Take(6).Select(x => new AssistantChoice(x.Id.ToString(), $"{x.Name} · {x.Sku}", "product")).ToList(),
+                "Product");
         }
 
         if (command.CommandType == "create_product" && string.IsNullOrWhiteSpace(command.Name))
         {
-            return Clarification("Уточните название товара. Например: «Создай товар Перчатки SKU GLV-01 мин 5».", []);
+            return Clarification(
+                command,
+                "Уточните название товара. Например: «Создай товар Перчатки SKU GLV-01 мин 5».",
+                [],
+                null);
         }
 
         if (command.CommandType == "create_product" && string.IsNullOrWhiteSpace(command.Sku))
         {
-            return Clarification("Уточните SKU товара. Например: «Создай товар Перчатки SKU GLV-01».", []);
+            return Clarification(
+                command,
+                "Уточните SKU товара. Например: «Создай товар Перчатки SKU GLV-01».",
+                [],
+                null);
         }
 
-        if (command.CommandType == "create_product" && context.Products.Any(x => x.Sku.Equals(command.Sku, StringComparison.OrdinalIgnoreCase)))
+        if (command.CommandType == "create_product" &&
+            context.Products.Any(x => x.Sku.Equals(command.Sku, StringComparison.OrdinalIgnoreCase)))
         {
-            return Clarification("Товар с таким SKU уже существует.", []);
+            return Clarification(
+                command,
+                "Товар с таким SKU уже существует.",
+                [],
+                null);
         }
 
         if (command.CommandType == "update_min_stock" && command.MinQuantity is null or < 0)
         {
-            return Clarification("Укажите новое значение минимального остатка не ниже нуля.", []);
+            return Clarification(
+                command,
+                "Укажите новое значение минимального остатка не ниже нуля.",
+                [],
+                null);
         }
 
         if (definition?.RequiresQuantity == true && !HasPositiveQuantity(command))
         {
-            return Clarification("Укажите положительное количество.", []);
+            return Clarification(
+                command,
+                "Укажите положительное количество.",
+                [],
+                null);
         }
 
         if (definition?.RequiresSourceCell == true && command.SourceCellId is null)
         {
-            return Clarification("Укажите исходную ячейку.", CellChoices(context));
+            return Clarification(
+                command,
+                "Укажите исходную ячейку.",
+                CellChoices(context),
+                "SourceCell");
         }
 
         if (definition?.RequiresTargetCell == true && command.TargetCellId is null)
         {
-            return Clarification("Укажите целевую ячейку.", CellChoices(context));
+            return Clarification(
+                command,
+                "Укажите целевую ячейку.",
+                CellChoices(context),
+                "TargetCell");
         }
 
-        if (definition?.RequiresSourceCell == true && definition.RequiresTargetCell && command.SourceCellId == command.TargetCellId)
+        if (definition?.RequiresSourceCell == true &&
+            definition.RequiresTargetCell &&
+            command.SourceCellId == command.TargetCellId)
         {
-            return Clarification("Исходная и целевая ячейки должны отличаться.", CellChoices(context));
+            return Clarification(
+                command,
+                "Исходная и целевая ячейки должны отличаться.",
+                CellChoices(context),
+                "TargetCell");
         }
 
         return null;
@@ -133,21 +189,55 @@ public sealed class AiCommandNormalizer(AiCommandRegistry commandRegistry, AiCom
 
     private static List<AssistantChoice> CellChoices(AiCommandContext context)
     {
-        return context.Cells.Take(8).Select(x => new AssistantChoice(x.Id.ToString(), $"{x.Code} · {x.Name}", "cell")).ToList();
+        return context.Cells
+            .Take(8)
+            .Select(x => new AssistantChoice(x.Id.ToString(), $"{x.Code} · {x.Name}", "cell"))
+            .ToList();
     }
 
-    private static AssistantCommand Clarification(string question, List<AssistantChoice> choices)
+    private static string? NormalizeClarificationTarget(string? target, IReadOnlyList<AssistantChoice> choices)
     {
-        return new AssistantCommand
+        if (!string.IsNullOrWhiteSpace(target))
         {
-            Mode = "Clarification",
-            Provider = "Server",
-            CommandType = "unknown",
-            RiskLevel = "None",
-            RequiresConfirmation = false,
-            Summary = question,
-            ClarificationQuestion = question,
-            Choices = choices
-        };
+            return target.Trim() switch
+            {
+                "product" or "Product" => "Product",
+                "sourcecell" or "SourceCell" => "SourceCell",
+                "targetcell" or "TargetCell" => "TargetCell",
+                "command" or "Command" => "Command",
+                _ => target.Trim()
+            };
+        }
+
+        var kinds = choices
+            .Select(choice => choice.Kind.Trim().ToLowerInvariant())
+            .Where(kind => !string.IsNullOrWhiteSpace(kind))
+            .Distinct()
+            .ToList();
+
+        return kinds.Count == 1
+            ? kinds[0] switch
+            {
+                "product" => "Product",
+                "command" => "Command",
+                _ => null
+            }
+            : null;
+    }
+
+    private static AssistantCommand Clarification(
+        AssistantCommand command,
+        string question,
+        List<AssistantChoice> choices,
+        string? target)
+    {
+        command.Mode = "Clarification";
+        command.RiskLevel = "None";
+        command.RequiresConfirmation = false;
+        command.Summary = question;
+        command.ClarificationQuestion = question;
+        command.ClarificationTarget = target;
+        command.Choices = choices;
+        return command;
     }
 }

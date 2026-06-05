@@ -10,6 +10,7 @@ data class AiAssistantUiState(
     val isLoadingCommands: Boolean = false,
     val messages: List<AiChatMessage> = emptyList(),
     val pendingCommand: AiAssistantCommand? = null,
+    val clarificationCommand: AiAssistantCommand? = null,
     val lastResult: AiAssistantResult? = null,
     val quickPrompts: List<String> = listOf(
         "Покажи сводку по складу",
@@ -34,9 +35,15 @@ data class AiAssistantCommand(
     val provider: String,
     val commandType: String,
     val riskLevel: String,
+    val productId: Int?,
+    val sourceCellId: Int?,
+    val targetCellId: Int?,
+    val quantity: Double?,
+    val minQuantity: Double?,
     val summary: String,
     val requiresConfirmation: Boolean,
     val clarificationQuestion: String?,
+    val clarificationTarget: String?,
     val choices: List<AiAssistantChoice>
 )
 
@@ -52,8 +59,33 @@ data class AiAssistantResult(
     val success: Boolean,
     val message: String,
     val details: List<String> = emptyList(),
-    val navigationTarget: AiAssistantNavigationTarget? = null
+    val isClarification: Boolean = false,
+    val clientAction: AiAssistantClientAction? = null
 )
+
+@Immutable
+data class AiAssistantClientAction(
+    val commandType: String,
+    val productId: Int? = null,
+    val sourceCellId: Int? = null,
+    val targetCellId: Int? = null,
+    val quantity: Double? = null,
+    val minQuantity: Double? = null,
+    val itemsFilter: AiAssistantItemsFilter? = null,
+    val operationType: AiAssistantOperationType? = null
+)
+
+enum class AiAssistantItemsFilter {
+    Available,
+    LowStock,
+    ZeroStock
+}
+
+enum class AiAssistantOperationType {
+    Receive,
+    WriteOff,
+    Move
+}
 
 @Immutable
 data class AiAssistantCommandDefinition(
@@ -63,8 +95,3 @@ data class AiAssistantCommandDefinition(
     val riskLevel: String,
     val examples: List<String>
 )
-
-enum class AiAssistantNavigationTarget {
-    Products,
-    Operations
-}
