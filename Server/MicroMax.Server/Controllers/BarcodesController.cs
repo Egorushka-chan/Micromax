@@ -16,9 +16,6 @@ public sealed class BarcodesController(
     BarcodesApiService barcodesApiService,
     CurrentUserService currentUserService) : MicroMaxControllerBase
 {
-    /// <summary>
-    /// Ищет объект системы по значению штрих-кода.
-    /// </summary>
     [HttpGet("resolve")]
     [ProducesResponseType(typeof(BarcodeResolveResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -31,9 +28,19 @@ public sealed class BarcodesController(
         return Ok(await barcodesApiService.ResolveAsync(userId, value, cancellationToken));
     }
 
-    /// <summary>
-    /// Деактивирует штрих-код, не удаляя запись физически.
-    /// </summary>
+    [HttpGet("/api/warehouses/{warehouseId:int}/barcodes/resolve")]
+    [ProducesResponseType(typeof(BarcodeResolveResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<BarcodeResolveResponse>> ResolveForWarehouseAsync(
+        int warehouseId,
+        [FromQuery] string value,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await barcodesApiService.ResolveAsync(userId, warehouseId, value, cancellationToken));
+    }
+
     [HttpDelete("{barcodeId:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -43,6 +50,21 @@ public sealed class BarcodesController(
     {
         var userId = currentUserService.GetRequiredUserId(User);
         await barcodesApiService.DeactivateAsync(userId, barcodeId, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete("/api/warehouses/{warehouseId:int}/barcodes/{barcodeId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteForWarehouseAsync(
+        int warehouseId,
+        int barcodeId,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        await barcodesApiService.DeactivateAsync(userId, warehouseId, barcodeId, cancellationToken);
         return NoContent();
     }
 }

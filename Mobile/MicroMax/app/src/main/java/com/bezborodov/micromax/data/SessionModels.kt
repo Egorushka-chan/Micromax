@@ -38,12 +38,21 @@ data class WarehouseUser(
 )
 
 @Immutable
+data class WarehouseSetupTemplate(
+    val code: String,
+    val name: String,
+    val description: String,
+    val zonesCount: Int,
+    val cellsCount: Int
+)
+
+@Immutable
 data class AuthSession(
     val accessToken: String,
     val accessTokenExpiresAt: OffsetDateTime,
     val refreshToken: String,
     val user: CurrentUser,
-    val activeWarehouseIdForSettings: Int?
+    val selectedWarehouse: CurrentUserWarehouse?
 )
 
 @Immutable
@@ -60,12 +69,12 @@ data class UserPermissions(
     val canExecuteOperations: Boolean
 )
 
-fun CurrentUser.permissions(): UserPermissions {
-    val roles = warehouses.map(CurrentUserWarehouse::roleCode)
+fun permissionsForWarehouse(warehouse: CurrentUserWarehouse?): UserPermissions {
+    val roleCode = warehouse?.roleCode
     return UserPermissions(
-        canReadWarehouseData = roles.isNotEmpty(),
-        canCreateProducts = roles.any { it == RoleAdmin },
-        canExecuteOperations = roles.any { it in OperationRoles }
+        canReadWarehouseData = roleCode != null,
+        canCreateProducts = roleCode == RoleAdmin,
+        canExecuteOperations = roleCode in OperationRoles
     )
 }
 

@@ -2,10 +2,12 @@ package com.bezborodov.micromax.ui.auth
 
 import androidx.compose.runtime.Immutable
 import com.bezborodov.micromax.data.AuthSession
+import com.bezborodov.micromax.data.CurrentUserWarehouse
 import com.bezborodov.micromax.data.RoleAdmin
 import com.bezborodov.micromax.data.UserPermissions
+import com.bezborodov.micromax.data.WarehouseSetupTemplate
 import com.bezborodov.micromax.data.WarehouseUser
-import com.bezborodov.micromax.data.permissions
+import com.bezborodov.micromax.data.permissionsForWarehouse
 
 @Immutable
 data class SessionUiState(
@@ -14,9 +16,11 @@ data class SessionUiState(
     val isCreatingWarehouse: Boolean = false,
     val isWarehouseUsersLoading: Boolean = false,
     val isWarehouseUserSubmitting: Boolean = false,
+    val isWarehouseTemplatesLoading: Boolean = false,
     val currentSession: AuthSession? = null,
     val warehouseUsers: List<WarehouseUser> = emptyList(),
     val loadedWarehouseUsersWarehouseId: Int? = null,
+    val warehouseSetupTemplates: List<WarehouseSetupTemplate> = emptyList(),
     val message: String? = null
 ) {
     val isAuthenticated: Boolean
@@ -27,18 +31,17 @@ data class SessionUiState(
     val hasWarehouses: Boolean
         get() = currentUser?.warehouses?.isNotEmpty() == true
 
-    val permissions: UserPermissions
-        get() = currentUser?.permissions() ?: UserPermissions(
-            canReadWarehouseData = false,
-            canCreateProducts = false,
-            canExecuteOperations = false
-        )
+    val selectedWarehouse: CurrentUserWarehouse?
+        get() = currentSession?.selectedWarehouse
 
     val selectedWarehouseId: Int?
-        get() = currentSession?.activeWarehouseIdForSettings ?: currentUser?.warehouses?.firstOrNull()?.warehouseId
+        get() = selectedWarehouse?.warehouseId
 
-    val selectedWarehouse = currentUser?.warehouses?.firstOrNull { it.warehouseId == selectedWarehouseId }
-        ?: currentUser?.warehouses?.firstOrNull()
+    val requiresWarehouseSelection: Boolean
+        get() = hasWarehouses && selectedWarehouse == null
+
+    val permissions: UserPermissions
+        get() = permissionsForWarehouse(selectedWarehouse)
 
     val canManageSelectedWarehouseUsers: Boolean
         get() = selectedWarehouse?.roleCode == RoleAdmin

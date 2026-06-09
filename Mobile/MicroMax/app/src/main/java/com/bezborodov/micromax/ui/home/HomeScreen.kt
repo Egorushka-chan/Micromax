@@ -84,19 +84,23 @@ fun HomeScreen(
     onAddWarehouseUser: (String, String) -> Unit,
     onUpdateWarehouseUserRole: (Int, String) -> Unit,
     onRemoveWarehouseUser: (Int) -> Unit,
+    onCreateWarehouse: (String, String?) -> Unit,
+    onCreateWarehouseFromTemplate: (String, String?, String) -> Unit,
+    onLoadWarehouseTemplates: (Boolean) -> Unit,
     onClearSessionMessage: () -> Unit
 ) {
     val userId = sessionState.currentUser?.id ?: 0
+    val selectedWarehouseId = sessionState.selectedWarehouseId ?: return
     val lifecycleOwner = LocalLifecycleOwner.current
     val permissions = sessionState.permissions
     val scope = rememberCoroutineScope()
     val viewModel: WarehouseViewModel = viewModel(
-        key = "warehouse-$userId",
-        factory = WarehouseViewModelFactory(apiClient)
+        key = "warehouse-$userId-$selectedWarehouseId",
+        factory = WarehouseViewModelFactory(apiClient, selectedWarehouseId)
     )
     val assistantViewModel: AiAssistantViewModel = viewModel(
-        key = "assistant-$userId",
-        factory = AiAssistantViewModelFactory(apiClient)
+        key = "assistant-$userId-$selectedWarehouseId",
+        factory = AiAssistantViewModelFactory(apiClient, selectedWarehouseId)
     )
 
     var selectedTab by remember(userId) { mutableStateOf(BottomTab.Home) }
@@ -111,10 +115,12 @@ fun HomeScreen(
     var showManualBarcodeDialog by remember(userId) { mutableStateOf(false) }
     var scannerSession by remember(userId) { mutableStateOf<ScannerSession?>(null) }
     var isBarcodeActionInProgress by remember(userId) { mutableStateOf(false) }
+    var isWarehouseMenuOpen by remember(userId, selectedWarehouseId) { mutableStateOf(false) }
+    var pendingWarehouseSelectionId by remember(userId, selectedWarehouseId) { mutableStateOf<Int?>(null) }
 
     val state = viewModel.uiState
     val assistantState = assistantViewModel.uiState
-    val warehouseName = sessionState.currentUser?.warehouses?.firstOrNull()?.warehouseName
+    val warehouseName = sessionState.selectedWarehouse?.warehouseName
     val hasLoadedData = state.snapshot.products.isNotEmpty() ||
         state.snapshot.cells.isNotEmpty() ||
         state.snapshot.stocks.isNotEmpty() ||
@@ -169,7 +175,7 @@ fun HomeScreen(
             barcodeMessage = null
 
             val result = runCatching {
-                withContext(Dispatchers.IO) { apiClient.resolveBarcode(scannedBarcode.rawValue) }
+                withContext(Dispatchers.IO) { apiClient.resolveBarcode(selectedWarehouseId, scannedBarcode.rawValue) }
             }
 
             isBarcodeActionInProgress = false
@@ -198,6 +204,7 @@ fun HomeScreen(
             val result = runCatching {
                 withContext(Dispatchers.IO) {
                     apiClient.addProductBarcode(
+                        selectedWarehouseId,
                         product.id,
                         BarcodeDraftDto(
                             value = barcode.rawValue,
@@ -279,6 +286,13 @@ fun HomeScreen(
     LaunchedEffect(state.requiresReauthentication, assistantState.requiresReauthentication) {
         if (state.requiresReauthentication || assistantState.requiresReauthentication) {
             onSessionExpired()
+        }
+    }
+
+    LaunchedEffect(sessionState.selectedWarehouseId, pendingWarehouseSelectionId) {
+        if (pendingWarehouseSelectionId != null && pendingWarehouseSelectionId == sessionState.selectedWarehouseId) {
+            pendingWarehouseSelectionId = null
+            isWarehouseMenuOpen = false
         }
     }
 
@@ -400,6 +414,7 @@ fun HomeScreen(
                             warehouseName = warehouseName,
                             canCreateProducts = permissions.canCreateProducts,
                             canExecuteOperations = permissions.canExecuteOperations,
+                            onOpenWarehouseMenu = { isWarehouseMenuOpen = true },
                             onOpenItems = {
                                 itemsStartDestination = ItemsStartDestination.List
                                 selectedTab = BottomTab.Items
@@ -425,6 +440,7 @@ fun HomeScreen(
                             state = state,
                             isSubmitting = state.isOperationSubmitting,
                             startDestination = itemsStartDestination,
+                            warehouseId = selectedWarehouseId,
                             canCreateProducts = permissions.canCreateProducts,
                             canExecuteOperations = permissions.canExecuteOperations,
                             apiClient = apiClient,
@@ -440,6 +456,7 @@ fun HomeScreen(
 
                         BottomTab.Cells -> CellsScreen(
                             state = state,
+                            warehouseId = selectedWarehouseId,
                             apiClient = apiClient,
                             onSessionExpired = onSessionExpired,
                             canExecuteOperations = permissions.canExecuteOperations,
@@ -455,6 +472,7 @@ fun HomeScreen(
                             warehouseName = warehouseName,
                             canCreateProducts = permissions.canCreateProducts,
                             canExecuteOperations = permissions.canExecuteOperations,
+                            onOpenWarehouseMenu = { isWarehouseMenuOpen = true },
                             onOpenItems = {
                                 itemsStartDestination = ItemsStartDestination.List
                                 selectedTab = BottomTab.Items
@@ -514,6 +532,31 @@ fun HomeScreen(
             onClarificationChoice = assistantViewModel::chooseClarification,
             onCancelPending = assistantViewModel::rejectPending
         )
+
+        if (isWarehouseMenuOpen) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(ScreenBg)
+            ) {
+                WarehouseMenuScreen(
+                    sessionState = sessionState,
+                    onSelectWarehouse = { warehouseId ->
+                        if (warehouseId == sessionState.selectedWarehouseId) {
+                            pendingWarehouseSelectionId = null
+                            isWarehouseMenuOpen = false
+                        } else {
+                            pendingWarehouseSelectionId = warehouseId
+                            onSelectActiveWarehouse(warehouseId)
+                        }
+                    },
+                    onCreateWarehouse = onCreateWarehouse,
+                    onCreateWarehouseFromTemplate = onCreateWarehouseFromTemplate,
+                    onLoadTemplates = onLoadWarehouseTemplates,
+                    onClose = { isWarehouseMenuOpen = false }
+                )
+            }
+        }
 
         if (isBarcodeActionInProgress) {
             Box(

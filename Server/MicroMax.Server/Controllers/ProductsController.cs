@@ -18,9 +18,6 @@ public sealed class ProductsController(
     ProductsApiService productsApiService,
     CurrentUserService currentUserService) : MicroMaxControllerBase
 {
-    /// <summary>
-    /// Возвращает список номенклатуры.
-    /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<ProductResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ProductResponse>>> GetAsync(CancellationToken cancellationToken)
@@ -29,9 +26,6 @@ public sealed class ProductsController(
         return Ok(await productsApiService.GetAsync(userId, cancellationToken));
     }
 
-    /// <summary>
-    /// Возвращает активные штрих-коды товара.
-    /// </summary>
     [HttpGet("{productId:int}/barcodes")]
     [ProducesResponseType(typeof(IReadOnlyList<BarcodeResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -45,9 +39,20 @@ public sealed class ProductsController(
         return Ok(await barcodesApiService.GetProductBarcodesAsync(userId, productId, cancellationToken));
     }
 
-    /// <summary>
-    /// Привязывает новый штрих-код к товару.
-    /// </summary>
+    [HttpGet("/api/warehouses/{warehouseId:int}/products/{productId:int}/barcodes")]
+    [ProducesResponseType(typeof(IReadOnlyList<BarcodeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<BarcodeResponse>>> GetBarcodesForWarehouseAsync(
+        int warehouseId,
+        int productId,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await barcodesApiService.GetProductBarcodesAsync(userId, warehouseId, productId, cancellationToken));
+    }
+
     [HttpPost("{productId:int}/barcodes")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(BarcodeResponse), StatusCodes.Status201Created)]
@@ -65,9 +70,24 @@ public sealed class ProductsController(
         return CreatedResource($"/api/barcodes/{barcode.Id}", barcode);
     }
 
-    /// <summary>
-    /// Возвращает ячейки, в которых есть остаток по выбранной номенклатуре.
-    /// </summary>
+    [HttpPost("/api/warehouses/{warehouseId:int}/products/{productId:int}/barcodes")]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(BarcodeResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BarcodeResponse>> CreateBarcodeForWarehouseAsync(
+        int warehouseId,
+        int productId,
+        [FromBody] BarcodeDraftRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        var barcode = await barcodesApiService.CreateProductBarcodeAsync(userId, warehouseId, productId, request, cancellationToken);
+        return CreatedResource($"/api/barcodes/{barcode.Id}", barcode);
+    }
+
     [HttpGet("{id:int}/locations")]
     [ProducesResponseType(typeof(IReadOnlyList<ProductLocationResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -80,9 +100,6 @@ public sealed class ProductsController(
         return Ok(await productsApiService.GetLocationsAsync(userId, id, cancellationToken));
     }
 
-    /// <summary>
-    /// Создаёт новую позицию номенклатуры.
-    /// </summary>
     [HttpPost]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(ProductResponse), StatusCodes.Status201Created)]
@@ -98,9 +115,22 @@ public sealed class ProductsController(
         return CreatedResource($"/api/products/{product.Id}", product);
     }
 
-    /// <summary>
-    /// Обновляет свойства номенклатуры.
-    /// </summary>
+    [HttpPost("/api/warehouses/{warehouseId:int}/products")]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(ProductResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ProductResponse>> CreateForWarehouseAsync(
+        int warehouseId,
+        [FromBody] CreateProductRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        var product = await productsApiService.CreateAsync(userId, warehouseId, request, cancellationToken);
+        return CreatedResource($"/api/products/{product.Id}", product);
+    }
+
     [HttpPut("{id:int}")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(ProductResponse), StatusCodes.Status200OK)]
@@ -117,9 +147,23 @@ public sealed class ProductsController(
         return Ok(await productsApiService.UpdateAsync(userId, id, request, cancellationToken));
     }
 
-    /// <summary>
-    /// Удаляет номенклатуру.
-    /// </summary>
+    [HttpPut("/api/warehouses/{warehouseId:int}/products/{id:int}")]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(ProductResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ProductResponse>> UpdateForWarehouseAsync(
+        int warehouseId,
+        int id,
+        [FromBody] UpdateProductRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await productsApiService.UpdateAsync(userId, warehouseId, id, request, cancellationToken));
+    }
+
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]

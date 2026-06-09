@@ -21,13 +21,13 @@ class SessionStore(context: Context) {
 
         return runCatching {
             val user = parseUser(JSONObject(userJson))
+            val selectedWarehouse = loadSelectedWarehouse(user)
             AuthSession(
                 accessToken = accessToken,
                 accessTokenExpiresAt = OffsetDateTime.parse(expiresAt),
                 refreshToken = refreshToken,
                 user = user,
-                activeWarehouseIdForSettings = preferences.getInt(KeyActiveWarehouseId, MissingWarehouseId)
-                    .takeIf { it != MissingWarehouseId }
+                selectedWarehouse = selectedWarehouse
             )
         }.getOrNull()
     }
@@ -39,10 +39,13 @@ class SessionStore(context: Context) {
             .putString(KeyRefreshToken, session.refreshToken)
             .putString(KeyUserJson, serializeUser(session.user).toString())
             .apply {
-                if (session.activeWarehouseIdForSettings == null) {
+                val selectedWarehouse = session.selectedWarehouse
+                if (selectedWarehouse == null) {
+                    remove(KeySelectedWarehouseJson)
                     remove(KeyActiveWarehouseId)
                 } else {
-                    putInt(KeyActiveWarehouseId, session.activeWarehouseIdForSettings)
+                    putString(KeySelectedWarehouseJson, serializeWarehouse(selectedWarehouse).toString())
+                    putInt(KeyActiveWarehouseId, selectedWarehouse.warehouseId)
                 }
             }
             .apply()
@@ -62,14 +65,7 @@ class SessionStore(context: Context) {
                 "warehouses",
                 JSONArray().apply {
                     user.warehouses.forEach { warehouse ->
-                        put(
-                            JSONObject().apply {
-                                put("warehouseId", warehouse.warehouseId)
-                                put("warehouseName", warehouse.warehouseName)
-                                put("roleCode", warehouse.roleCode)
-                                put("roleName", warehouse.roleName)
-                            }
-                        )
+                        put(serializeWarehouse(warehouse))
                     }
                 }
             )
@@ -84,15 +80,7 @@ class SessionStore(context: Context) {
             }
 
             for (index in 0 until warehousesJson.length()) {
-                val warehouse = warehousesJson.getJSONObject(index)
-                add(
-                    CurrentUserWarehouse(
-                        warehouseId = warehouse.getInt("warehouseId"),
-                        warehouseName = warehouse.optString("warehouseName"),
-                        roleCode = warehouse.optString("roleCode"),
-                        roleName = warehouse.optString("roleName")
-                    )
-                )
+                add(parseWarehouse(warehousesJson.getJSONObject(index)))
             }
         }
 
@@ -105,12 +93,51 @@ class SessionStore(context: Context) {
         )
     }
 
+    private fun loadSelectedWarehouse(user: CurrentUser): CurrentUserWarehouse? {
+        val selectedWarehouseJson = preferences.getString(KeySelectedWarehouseJson, null)
+        if (!selectedWarehouseJson.isNullOrBlank()) {
+            val selectedWarehouseId = runCatching {
+                JSONObject(selectedWarehouseJson).getInt("warehouseId")
+            }.getOrNull()
+
+            if (selectedWarehouseId != null) {
+                return user.warehouses.firstOrNull { it.warehouseId == selectedWarehouseId }
+            }
+        }
+
+        val legacyWarehouseId = preferences.getInt(KeyActiveWarehouseId, MissingWarehouseId)
+            .takeIf { it != MissingWarehouseId }
+
+        return legacyWarehouseId?.let { warehouseId ->
+            user.warehouses.firstOrNull { it.warehouseId == warehouseId }
+        }
+    }
+
+    private fun serializeWarehouse(warehouse: CurrentUserWarehouse): JSONObject {
+        return JSONObject().apply {
+            put("warehouseId", warehouse.warehouseId)
+            put("warehouseName", warehouse.warehouseName)
+            put("roleCode", warehouse.roleCode)
+            put("roleName", warehouse.roleName)
+        }
+    }
+
+    private fun parseWarehouse(jsonObject: JSONObject): CurrentUserWarehouse {
+        return CurrentUserWarehouse(
+            warehouseId = jsonObject.getInt("warehouseId"),
+            warehouseName = jsonObject.optString("warehouseName"),
+            roleCode = jsonObject.optString("roleCode"),
+            roleName = jsonObject.optString("roleName")
+        )
+    }
+
     private companion object {
         const val PreferencesName = "micromax_session"
         const val KeyAccessToken = "access_token"
         const val KeyAccessTokenExpiresAt = "access_token_expires_at"
         const val KeyRefreshToken = "refresh_token"
         const val KeyUserJson = "user_json"
+        const val KeySelectedWarehouseJson = "selected_warehouse_json"
         const val KeyActiveWarehouseId = "active_warehouse_id"
         const val MissingWarehouseId = Int.MIN_VALUE
     }

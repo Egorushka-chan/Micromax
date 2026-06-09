@@ -6,6 +6,7 @@ import com.bezborodov.micromax.data.MicroMaxApiClient
 import com.bezborodov.micromax.data.SessionRepository
 import com.bezborodov.micromax.ui.components.LoadingState
 import com.bezborodov.micromax.ui.home.HomeScreen
+import com.bezborodov.micromax.ui.home.WarehouseMenuScreen
 
 @Composable
 fun AppRoot(
@@ -27,9 +28,12 @@ fun AppRoot(
             onClearMessage = sessionViewModel::clearMessage
         )
 
-        !sessionState.hasWarehouses -> NoWarehouseAccessScreen(
-            state = sessionState,
-            onCreateWarehouse = sessionViewModel::createFirstWarehouse,
+        !sessionState.hasWarehouses || sessionState.requiresWarehouseSelection -> WarehouseMenuScreen(
+            sessionState = sessionState,
+            onSelectWarehouse = sessionViewModel::selectActiveWarehouse,
+            onCreateWarehouse = sessionViewModel::createWarehouse,
+            onCreateWarehouseFromTemplate = sessionViewModel::createWarehouseFromTemplate,
+            onLoadTemplates = sessionViewModel::loadWarehouseTemplatesIfNeeded,
             onLogout = sessionViewModel::logout
         )
 
@@ -43,6 +47,9 @@ fun AppRoot(
             onAddWarehouseUser = sessionViewModel::addWarehouseUser,
             onUpdateWarehouseUserRole = sessionViewModel::updateWarehouseUserRole,
             onRemoveWarehouseUser = sessionViewModel::removeWarehouseUser,
+            onCreateWarehouse = sessionViewModel::createWarehouse,
+            onCreateWarehouseFromTemplate = sessionViewModel::createWarehouseFromTemplate,
+            onLoadWarehouseTemplates = sessionViewModel::loadWarehouseTemplatesIfNeeded,
             onClearSessionMessage = sessionViewModel::clearMessage
         )
     }

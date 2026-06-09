@@ -44,12 +44,33 @@ public sealed class ProductsApiService(
             .ToListAsync(cancellationToken);
     }
 
+    public Task<ProductResponse> CreateAsync(
+        int userId,
+        CreateProductRequest request,
+        CancellationToken cancellationToken = default) =>
+        CreateAsync(userId, null, request, cancellationToken);
+
+    public Task<ProductResponse> CreateAsync(
+        int userId,
+        int warehouseId,
+        CreateProductRequest request,
+        CancellationToken cancellationToken = default) =>
+        CreateAsync(userId, (int?)warehouseId, request, cancellationToken);
+
     public async Task<ProductResponse> CreateAsync(
         int userId,
+        int? warehouseId,
         CreateProductRequest request,
         CancellationToken cancellationToken = default)
     {
-        await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+        if (warehouseId is null)
+        {
+            await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+        }
+        else
+        {
+            await warehousePermissionService.EnsureProductManagementAccessAsync(userId, warehouseId.Value, cancellationToken);
+        }
 
         var sku = request.Sku.Trim();
         if (await db.Products.AnyAsync(x => x.Sku == sku, cancellationToken))
@@ -74,11 +95,23 @@ public sealed class ProductsApiService(
 
         if (request.InitialBarcode is not null)
         {
-            await barcodesApiService.CreateProductBarcodeAsync(
-                userId,
-                product.Id,
-                request.InitialBarcode,
-                cancellationToken);
+            if (warehouseId is null)
+            {
+                await barcodesApiService.CreateProductBarcodeAsync(
+                    userId,
+                    product.Id,
+                    request.InitialBarcode,
+                    cancellationToken);
+            }
+            else
+            {
+                await barcodesApiService.CreateProductBarcodeAsync(
+                    userId,
+                    warehouseId.Value,
+                    product.Id,
+                    request.InitialBarcode,
+                    cancellationToken);
+            }
         }
 
         if (transaction is not null)
@@ -89,13 +122,36 @@ public sealed class ProductsApiService(
         return ToResponse(product);
     }
 
+    public Task<ProductResponse> UpdateAsync(
+        int userId,
+        int productId,
+        UpdateProductRequest request,
+        CancellationToken cancellationToken = default) =>
+        UpdateAsync(userId, null, productId, request, cancellationToken);
+
+    public Task<ProductResponse> UpdateAsync(
+        int userId,
+        int warehouseId,
+        int productId,
+        UpdateProductRequest request,
+        CancellationToken cancellationToken = default) =>
+        UpdateAsync(userId, (int?)warehouseId, productId, request, cancellationToken);
+
     public async Task<ProductResponse> UpdateAsync(
         int userId,
+        int? warehouseId,
         int productId,
         UpdateProductRequest request,
         CancellationToken cancellationToken = default)
     {
-        await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+        if (warehouseId is null)
+        {
+            await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+        }
+        else
+        {
+            await warehousePermissionService.EnsureProductManagementAccessAsync(userId, warehouseId.Value, cancellationToken);
+        }
 
         var product = await db.Products.FindAsync([productId], cancellationToken)
             ?? throw new ApiNotFoundException("Номенклатура не найдена.");

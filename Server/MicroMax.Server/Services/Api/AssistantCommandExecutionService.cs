@@ -15,22 +15,37 @@ public sealed class AssistantCommandExecutionService(
         AssistantCommand command,
         int userId,
         CancellationToken cancellationToken = default) =>
+        ExecuteAsync(command, userId, null, cancellationToken);
+
+    public Task<WarehouseOperation?> ExecuteAsync(
+        AssistantCommand command,
+        int userId,
+        int? warehouseId,
+        CancellationToken cancellationToken = default) =>
         command.CommandType switch
         {
-            "post_receipt" => ReceiveFromCommandAsync(command, userId, cancellationToken),
-            "move_product" => MoveFromCommandAsync(command, userId, cancellationToken),
-            "write_off_product" => WriteOffFromCommandAsync(command, userId, cancellationToken),
-            "create_product" => CreateProductFromCommandAsync(command, userId, cancellationToken),
-            "update_min_stock" => UpdateMinQuantityFromCommandAsync(command, userId, cancellationToken),
+            "post_receipt" => ReceiveFromCommandAsync(command, userId, warehouseId, cancellationToken),
+            "move_product" => MoveFromCommandAsync(command, userId, warehouseId, cancellationToken),
+            "write_off_product" => WriteOffFromCommandAsync(command, userId, warehouseId, cancellationToken),
+            "create_product" => CreateProductFromCommandAsync(command, userId, warehouseId, cancellationToken),
+            "update_min_stock" => UpdateMinQuantityFromCommandAsync(command, userId, warehouseId, cancellationToken),
             _ => throw new ApiValidationException("Команда не содержит достаточных данных для выполнения.")
         };
 
     private async Task<WarehouseOperation?> CreateProductFromCommandAsync(
         AssistantCommand command,
         int userId,
+        int? warehouseId,
         CancellationToken cancellationToken)
     {
-        await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+        if (warehouseId is null)
+        {
+            await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+        }
+        else
+        {
+            await warehousePermissionService.EnsureProductManagementAccessAsync(userId, warehouseId.Value, cancellationToken);
+        }
 
         Ensure(command.Sku, command.Name);
 
@@ -55,9 +70,18 @@ public sealed class AssistantCommandExecutionService(
     private async Task<WarehouseOperation?> UpdateMinQuantityFromCommandAsync(
         AssistantCommand command,
         int userId,
+        int? warehouseId,
         CancellationToken cancellationToken)
     {
-        await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+        if (warehouseId is null)
+        {
+            await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+        }
+        else
+        {
+            await warehousePermissionService.EnsureProductManagementAccessAsync(userId, warehouseId.Value, cancellationToken);
+        }
+
         Ensure(command.ProductId, command.MinQuantity);
 
         var product = await db.Products.FindAsync([command.ProductId!.Value], cancellationToken)
@@ -71,10 +95,29 @@ public sealed class AssistantCommandExecutionService(
     private async Task<WarehouseOperation?> ReceiveFromCommandAsync(
         AssistantCommand command,
         int userId,
+        int? warehouseId,
         CancellationToken cancellationToken)
     {
         Ensure(command.ProductId, command.TargetCellId, command.Quantity);
-        await warehousePermissionService.EnsureOperationAccessAsync(userId, null, command.TargetCellId, cancellationToken);
+
+        if (warehouseId is null)
+        {
+            await warehousePermissionService.EnsureOperationAccessAsync(userId, null, command.TargetCellId, cancellationToken);
+        }
+        else
+        {
+            await warehousePermissionService.EnsureWarehousePermissionAsync(
+                userId,
+                warehouseId.Value,
+                WarehousePermission.OperationsExecute,
+                cancellationToken);
+            await warehousePermissionService.EnsureWarehouseMatchesCellsAsync(
+                warehouseId.Value,
+                null,
+                command.TargetCellId,
+                cancellationToken);
+        }
+
         return await warehouseOperationService.ReceiveAsync(
             new ReceiveRequest(
                 command.ProductId!.Value,
@@ -88,14 +131,33 @@ public sealed class AssistantCommandExecutionService(
     private async Task<WarehouseOperation?> MoveFromCommandAsync(
         AssistantCommand command,
         int userId,
+        int? warehouseId,
         CancellationToken cancellationToken)
     {
         Ensure(command.ProductId, command.SourceCellId, command.TargetCellId, command.Quantity);
-        await warehousePermissionService.EnsureOperationAccessAsync(
-            userId,
-            command.SourceCellId,
-            command.TargetCellId,
-            cancellationToken);
+
+        if (warehouseId is null)
+        {
+            await warehousePermissionService.EnsureOperationAccessAsync(
+                userId,
+                command.SourceCellId,
+                command.TargetCellId,
+                cancellationToken);
+        }
+        else
+        {
+            await warehousePermissionService.EnsureWarehousePermissionAsync(
+                userId,
+                warehouseId.Value,
+                WarehousePermission.OperationsExecute,
+                cancellationToken);
+            await warehousePermissionService.EnsureWarehouseMatchesCellsAsync(
+                warehouseId.Value,
+                command.SourceCellId,
+                command.TargetCellId,
+                cancellationToken);
+        }
+
         return await warehouseOperationService.MoveAsync(
             new MoveRequest(
                 command.ProductId!.Value,
@@ -110,10 +172,29 @@ public sealed class AssistantCommandExecutionService(
     private async Task<WarehouseOperation?> WriteOffFromCommandAsync(
         AssistantCommand command,
         int userId,
+        int? warehouseId,
         CancellationToken cancellationToken)
     {
         Ensure(command.ProductId, command.SourceCellId, command.Quantity);
-        await warehousePermissionService.EnsureOperationAccessAsync(userId, command.SourceCellId, null, cancellationToken);
+
+        if (warehouseId is null)
+        {
+            await warehousePermissionService.EnsureOperationAccessAsync(userId, command.SourceCellId, null, cancellationToken);
+        }
+        else
+        {
+            await warehousePermissionService.EnsureWarehousePermissionAsync(
+                userId,
+                warehouseId.Value,
+                WarehousePermission.OperationsExecute,
+                cancellationToken);
+            await warehousePermissionService.EnsureWarehouseMatchesCellsAsync(
+                warehouseId.Value,
+                command.SourceCellId,
+                null,
+                cancellationToken);
+        }
+
         return await warehouseOperationService.WriteOffAsync(
             new WriteOffRequest(
                 command.ProductId!.Value,

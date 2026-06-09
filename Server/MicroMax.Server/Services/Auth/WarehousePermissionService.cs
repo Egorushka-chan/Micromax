@@ -5,6 +5,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MicroMax.Server.Services.Auth;
 
+public sealed record WarehouseUserContext(
+    int WarehouseId,
+    string WarehouseName,
+    string RoleCode,
+    string RoleName);
+
 public sealed class WarehousePermissionService(MicroMaxDbContext db)
 {
     public async Task<IReadOnlyList<int>> GetAccessibleWarehouseIdsAsync(int userId, CancellationToken cancellationToken = default)
@@ -25,23 +31,39 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
         }
     }
 
+    public async Task<WarehouseUserContext> GetRequiredUserWarehouseContextAsync(
+        int userId,
+        int warehouseId,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await db.WarehouseUsers
+            .Where(x => x.UserId == userId && x.WarehouseId == warehouseId && x.User!.IsActive)
+            .Select(x => new WarehouseUserContext(
+                x.WarehouseId,
+                x.Warehouse!.Name,
+                x.Role!.Code,
+                x.Role.Name))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return context
+            ?? throw new ApiForbiddenException("У пользователя нет доступа к выбранному складу.");
+    }
+
+    public Task EnsureWarehouseAccessAsync(
+        int userId,
+        int warehouseId,
+        CancellationToken cancellationToken = default) =>
+        EnsureWarehousePermissionAsync(userId, warehouseId, WarehousePermission.WarehouseRead, cancellationToken);
+
     public async Task EnsureWarehousePermissionAsync(
         int userId,
         int warehouseId,
         WarehousePermission permission,
         CancellationToken cancellationToken = default)
     {
-        var roleCode = await db.WarehouseUsers
-            .Where(x => x.UserId == userId && x.WarehouseId == warehouseId && x.User!.IsActive)
-            .Select(x => x.Role!.Code)
-            .FirstOrDefaultAsync(cancellationToken);
+        var context = await GetRequiredUserWarehouseContextAsync(userId, warehouseId, cancellationToken);
 
-        if (roleCode is null)
-        {
-            throw new ApiForbiddenException("У пользователя нет доступа к выбранному складу.");
-        }
-
-        if (!RolePermissionMap.HasPermission(roleCode, permission))
+        if (!RolePermissionMap.HasPermission(context.RoleCode, permission))
         {
             throw new ApiForbiddenException("Недостаточно прав для выполнения действия.");
         }
@@ -58,6 +80,12 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
             throw new ApiForbiddenException("Только ADMIN может изменять глобальный каталог номенклатуры.");
         }
     }
+
+    public Task EnsureProductManagementAccessAsync(
+        int userId,
+        int warehouseId,
+        CancellationToken cancellationToken = default) =>
+        EnsureWarehousePermissionAsync(userId, warehouseId, WarehousePermission.ProductManage, cancellationToken);
 
     public async Task<int> EnsureOperationAccessAsync(
         int userId,
@@ -82,6 +110,35 @@ public sealed class WarehousePermissionService(MicroMaxDbContext db)
 
         await EnsureWarehousePermissionAsync(userId, warehouseId, WarehousePermission.OperationsExecute, cancellationToken);
         return warehouseId;
+    }
+
+    public async Task EnsureWarehouseMatchesCellsAsync(
+        int warehouseId,
+        int? sourceCellId,
+        int? targetCellId,
+        CancellationToken cancellationToken = default)
+    {
+        if (sourceCellId is not null)
+        {
+            await EnsureCellBelongsToWarehouseAsync(warehouseId, sourceCellId.Value, cancellationToken);
+        }
+
+        if (targetCellId is not null)
+        {
+            await EnsureCellBelongsToWarehouseAsync(warehouseId, targetCellId.Value, cancellationToken);
+        }
+    }
+
+    public async Task EnsureCellBelongsToWarehouseAsync(
+        int warehouseId,
+        int cellId,
+        CancellationToken cancellationToken = default)
+    {
+        var actualWarehouseId = await GetWarehouseIdForCellAsync(cellId, cancellationToken);
+        if (actualWarehouseId != warehouseId)
+        {
+            throw new ApiConflictException("Выбранная ячейка относится к другому складу.");
+        }
     }
 
     public async Task<int> GetWarehouseIdForZoneAsync(int zoneId, CancellationToken cancellationToken = default)

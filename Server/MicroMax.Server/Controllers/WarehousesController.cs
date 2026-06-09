@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace MicroMax.Server.Controllers;
 
 /// <summary>
-/// Управляет справочником складов.
+/// Управляет складами и складским контекстом пользователя.
 /// </summary>
 [Authorize]
 [Route("api/warehouses")]
@@ -25,6 +25,59 @@ public sealed class WarehousesController(
     {
         var userId = currentUserService.GetRequiredUserId(User);
         return Ok(await warehousesApiService.GetAsync(userId, cancellationToken));
+    }
+
+    /// <summary>
+    /// Возвращает список складов текущего пользователя вместе с ролью в каждом складе.
+    /// </summary>
+    [HttpGet("my")]
+    [ProducesResponseType(typeof(IReadOnlyList<UserWarehouseResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<UserWarehouseResponse>>> GetMyAsync(CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await warehousesApiService.GetMyAsync(userId, cancellationToken));
+    }
+
+    /// <summary>
+    /// Возвращает карточку выбранного склада с ролью текущего пользователя.
+    /// </summary>
+    [HttpGet("{id:int}")]
+    [ProducesResponseType(typeof(WarehouseDetailsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WarehouseDetailsResponse>> GetByIdAsync(int id, CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await warehousesApiService.GetByIdAsync(userId, id, cancellationToken));
+    }
+
+    /// <summary>
+    /// Возвращает структуру выбранного склада: зоны и ячейки.
+    /// </summary>
+    [HttpGet("{id:int}/structure")]
+    [ProducesResponseType(typeof(WarehouseStructureResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WarehouseStructureResponse>> GetStructureAsync(int id, CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await warehousesApiService.GetStructureAsync(userId, id, cancellationToken));
+    }
+
+    /// <summary>
+    /// Возвращает рабочий снимок выбранного склада для мобильного приложения.
+    /// </summary>
+    [HttpGet("{id:int}/snapshot")]
+    [ProducesResponseType(typeof(WarehouseSnapshotResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<WarehouseSnapshotResponse>> GetSnapshotAsync(int id, CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await warehousesApiService.GetSnapshotAsync(userId, id, cancellationToken));
     }
 
     /// <summary>

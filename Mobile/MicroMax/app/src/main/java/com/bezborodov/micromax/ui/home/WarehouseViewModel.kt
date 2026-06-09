@@ -22,7 +22,8 @@ private enum class RefreshTrigger {
 }
 
 class WarehouseViewModel(
-    private val apiClient: MicroMaxApiClient = MicroMaxApiClient()
+    private val apiClient: MicroMaxApiClient = MicroMaxApiClient(),
+    private val warehouseId: Int
 ) : ViewModel() {
     // Защищаемся от параллельных загрузок снимка и от устаревших ответов.
     private var isSnapshotRefreshInProgress = false
@@ -49,29 +50,29 @@ class WarehouseViewModel(
 
     fun receive(productId: Int, targetCellId: Int, quantity: Double, comment: String? = null) {
         runChangingOperation(successMessage = "Приход выполнен") {
-            apiClient.receive(productId, targetCellId, quantity, comment)
-            apiClient.loadSnapshot()
+            apiClient.receive(warehouseId, productId, targetCellId, quantity, comment)
+            apiClient.loadSnapshot(warehouseId)
         }
     }
 
     fun writeOff(productId: Int, sourceCellId: Int, quantity: Double, comment: String? = null) {
         runChangingOperation(successMessage = "Расход выполнен") {
-            apiClient.writeOff(productId, sourceCellId, quantity, comment)
-            apiClient.loadSnapshot()
+            apiClient.writeOff(warehouseId, productId, sourceCellId, quantity, comment)
+            apiClient.loadSnapshot(warehouseId)
         }
     }
 
     fun move(productId: Int, sourceCellId: Int, targetCellId: Int, quantity: Double, comment: String? = null) {
         runChangingOperation(successMessage = "Перемещение выполнено") {
-            apiClient.move(productId, sourceCellId, targetCellId, quantity, comment)
-            apiClient.loadSnapshot()
+            apiClient.move(warehouseId, productId, sourceCellId, targetCellId, quantity, comment)
+            apiClient.loadSnapshot(warehouseId)
         }
     }
 
     fun adjust(productId: Int, targetCellId: Int, targetQuantity: Double, comment: String? = null) {
         runChangingOperation(successMessage = "Корректировка выполнена") {
-            apiClient.adjust(productId, targetCellId, targetQuantity, comment)
-            apiClient.loadSnapshot()
+            apiClient.adjust(warehouseId, productId, targetCellId, targetQuantity, comment)
+            apiClient.loadSnapshot(warehouseId)
         }
     }
 
@@ -103,7 +104,8 @@ class WarehouseViewModel(
         runChangingOperation(successMessage = "Товар добавлен") {
             // Если указан стартовый остаток, сразу выполняем приёмку в выбранную ячейку.
             val product = apiClient.createProduct(
-                CreateProductRequest(
+                warehouseId = warehouseId,
+                request = CreateProductRequest(
                     sku = sku.trim(),
                     name = name.trim(),
                     unit = unit.trim(),
@@ -120,9 +122,9 @@ class WarehouseViewModel(
                 )
             )
             if (initialQuantity > 0.0 && initialCellId != null) {
-                apiClient.receive(product.id, initialCellId, initialQuantity)
+                apiClient.receive(warehouseId, product.id, initialCellId, initialQuantity)
             }
-            apiClient.loadSnapshot()
+            apiClient.loadSnapshot(warehouseId)
         }
     }
 
@@ -135,7 +137,7 @@ class WarehouseViewModel(
         viewModelScope.launch {
             uiState = uiState.copy(isAssistantLoading = true, message = null)
             val result = runCatching {
-                withContext(Dispatchers.IO) { apiClient.interpretAssistant(text) }
+                withContext(Dispatchers.IO) { apiClient.interpretAssistant(warehouseId, text) }
             }
             uiState = result.fold(
                 onSuccess = {
@@ -165,8 +167,8 @@ class WarehouseViewModel(
             successMessage = "Команда подтверждена и выполнена",
             clearPendingCommand = true
         ) {
-            apiClient.confirmAssistant(commandId)
-            apiClient.loadSnapshot()
+            apiClient.confirmAssistant(warehouseId, commandId)
+            apiClient.loadSnapshot(warehouseId)
         }
     }
 
@@ -265,7 +267,7 @@ class WarehouseViewModel(
     }
 
     private suspend fun loadSnapshot(): WarehouseSnapshot {
-        return withContext(Dispatchers.IO) { apiClient.loadSnapshot() }
+        return withContext(Dispatchers.IO) { apiClient.loadSnapshot(warehouseId) }
     }
 
     private fun unauthorizedOrErrorState(
@@ -284,12 +286,13 @@ class WarehouseViewModel(
 }
 
 class WarehouseViewModelFactory(
-    private val apiClient: MicroMaxApiClient
+    private val apiClient: MicroMaxApiClient,
+    private val warehouseId: Int
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(WarehouseViewModel::class.java)) {
-            return WarehouseViewModel(apiClient) as T
+            return WarehouseViewModel(apiClient, warehouseId) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

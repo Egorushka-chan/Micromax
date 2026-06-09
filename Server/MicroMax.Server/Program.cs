@@ -98,6 +98,7 @@ builder.Services.AddScoped<WarehousePermissionService>();
 builder.Services.AddScoped<AdminPanelSignInService>();
 builder.Services.AddScoped<IAuthorizationHandler, AdminPanelAuthorizationHandler>();
 builder.Services.AddScoped<WarehousesApiService>();
+builder.Services.AddScoped<WarehouseSetupService>();
 builder.Services.AddScoped<WarehouseUsersApiService>();
 builder.Services.AddScoped<ZonesApiService>();
 builder.Services.AddScoped<CellsApiService>();

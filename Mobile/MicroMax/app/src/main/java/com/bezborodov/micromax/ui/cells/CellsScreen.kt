@@ -70,6 +70,7 @@ private enum class CellsDestination {
 @Composable
 fun CellsScreen(
     state: HomeUiState,
+    warehouseId: Int,
     apiClient: MicroMaxApiClient,
     onSessionExpired: () -> Unit,
     canExecuteOperations: Boolean,
@@ -117,6 +118,7 @@ fun CellsScreen(
                 CellDetailsScreen(
                     cell = selectedCell,
                     stocks = state.snapshot.stocks.filter { it.cellCode == selectedCell.code && it.quantity > 0.0 },
+                    warehouseId = warehouseId,
                     apiClient = apiClient,
                     onSessionExpired = onSessionExpired,
                     canManageBarcodes = canManageCellBarcodes(selectedCell.warehouseId),
@@ -207,6 +209,7 @@ private fun CellsListScreen(
 private fun CellDetailsScreen(
     cell: CellDto,
     stocks: List<StockDto>,
+    warehouseId: Int,
     apiClient: MicroMaxApiClient,
     onSessionExpired: () -> Unit,
     canManageBarcodes: Boolean,
@@ -429,7 +432,7 @@ private fun CellDetailsScreen(
                     barcodesLoading = true
                     val result = runCatching {
                         withContext(Dispatchers.IO) {
-                            apiClient.deactivateBarcode(currentBarcode.id)
+                            apiClient.deactivateBarcode(warehouseId, currentBarcode.id)
                             apiClient.getCellBarcodes(cell.id)
                         }
                     }

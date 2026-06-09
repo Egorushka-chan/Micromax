@@ -16,17 +16,11 @@ public sealed class AssistantController(
     AssistantApiService assistantApiService,
     CurrentUserService currentUserService) : MicroMaxControllerBase
 {
-    /// <summary>
-    /// Возвращает справочник доступных команд помощника.
-    /// </summary>
     [HttpGet("commands")]
     [ProducesResponseType(typeof(IReadOnlyList<AssistantCommandDefinitionResponse>), StatusCodes.Status200OK)]
     public ActionResult<IReadOnlyList<AssistantCommandDefinitionResponse>> GetCommands() =>
         Ok(assistantApiService.GetCommands());
 
-    /// <summary>
-    /// Интерпретирует текстовую команду пользователя.
-    /// </summary>
     [HttpPost("interpret")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(AssistantCommandResponse), StatusCodes.Status200OK)]
@@ -41,9 +35,21 @@ public sealed class AssistantController(
         return Ok(await assistantApiService.InterpretAsync(userId, request, cancellationToken));
     }
 
-    /// <summary>
-    /// Подтверждает или отменяет ожидающую команду помощника.
-    /// </summary>
+    [HttpPost("/api/warehouses/{warehouseId:int}/assistant/interpret")]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(AssistantCommandResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<AssistantCommandResponse>> InterpretForWarehouseAsync(
+        int warehouseId,
+        [FromBody] AssistantRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await assistantApiService.InterpretAsync(userId, warehouseId, request, cancellationToken));
+    }
+
     [HttpPost("confirm")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(AssistantCommandResultResponse), StatusCodes.Status200OK)]
@@ -60,9 +66,23 @@ public sealed class AssistantController(
         return Ok(await assistantApiService.ConfirmAsync(userId, request, cancellationToken));
     }
 
-    /// <summary>
-    /// Продолжает цепочку уточнения по выбранному варианту.
-    /// </summary>
+    [HttpPost("/api/warehouses/{warehouseId:int}/assistant/confirm")]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(AssistantCommandResultResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AssistantCommandResultResponse>> ConfirmForWarehouseAsync(
+        int warehouseId,
+        [FromBody] AssistantConfirmationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await assistantApiService.ConfirmAsync(userId, warehouseId, request, cancellationToken));
+    }
+
     [HttpPost("clarify")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(AssistantCommandResponse), StatusCodes.Status200OK)]
@@ -76,5 +96,21 @@ public sealed class AssistantController(
     {
         var userId = currentUserService.GetRequiredUserId(User);
         return Ok(await assistantApiService.ClarifyAsync(userId, request, cancellationToken));
+    }
+
+    [HttpPost("/api/warehouses/{warehouseId:int}/assistant/clarify")]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(AssistantCommandResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AssistantCommandResponse>> ClarifyForWarehouseAsync(
+        int warehouseId,
+        [FromBody] AssistantClarificationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId(User);
+        return Ok(await assistantApiService.ClarifyAsync(userId, warehouseId, request, cancellationToken));
     }
 }

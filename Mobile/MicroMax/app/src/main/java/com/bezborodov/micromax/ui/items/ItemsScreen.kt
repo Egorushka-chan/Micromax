@@ -117,6 +117,7 @@ fun ItemsScreen(
     state: HomeUiState,
     isSubmitting: Boolean,
     startDestination: ItemsStartDestination,
+    warehouseId: Int,
     canCreateProducts: Boolean,
     canExecuteOperations: Boolean,
     apiClient: MicroMaxApiClient,
@@ -206,6 +207,7 @@ fun ItemsScreen(
                 ProductDetailsScreen(
                     product = selectedProduct,
                     stocks = state.snapshot.stocks.filter { it.sku == selectedProduct.sku && it.quantity > 0.0 },
+                    warehouseId = warehouseId,
                     apiClient = apiClient,
                     onSessionExpired = onSessionExpired,
                     canManageBarcodes = canCreateProducts,
@@ -510,6 +512,7 @@ private fun ProductListRow(
 private fun ProductDetailsScreen(
     product: ProductDto,
     stocks: List<StockDto>,
+    warehouseId: Int,
     apiClient: MicroMaxApiClient,
     onSessionExpired: () -> Unit,
     canManageBarcodes: Boolean,
@@ -530,7 +533,7 @@ private fun ProductDetailsScreen(
     suspend fun loadBarcodes() {
         barcodesLoading = true
         val result = runCatching {
-            withContext(Dispatchers.IO) { apiClient.getProductBarcodes(product.id) }
+            withContext(Dispatchers.IO) { apiClient.getProductBarcodes(warehouseId, product.id) }
         }
         result.fold(
             onSuccess = {
@@ -694,8 +697,8 @@ private fun ProductDetailsScreen(
                     barcodesLoading = true
                     val result = runCatching {
                         withContext(Dispatchers.IO) {
-                            apiClient.addProductBarcode(product.id, request)
-                            apiClient.getProductBarcodes(product.id)
+                            apiClient.addProductBarcode(warehouseId, product.id, request)
+                            apiClient.getProductBarcodes(warehouseId, product.id)
                         }
                     }
                     result.fold(
@@ -729,8 +732,8 @@ private fun ProductDetailsScreen(
                     barcodesLoading = true
                     val result = runCatching {
                         withContext(Dispatchers.IO) {
-                            apiClient.deactivateBarcode(currentBarcode.id)
-                            apiClient.getProductBarcodes(product.id)
+                            apiClient.deactivateBarcode(warehouseId, currentBarcode.id)
+                            apiClient.getProductBarcodes(warehouseId, product.id)
                         }
                     }
                     result.fold(

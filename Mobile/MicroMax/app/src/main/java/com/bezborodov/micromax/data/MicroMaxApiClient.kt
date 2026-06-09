@@ -60,6 +60,21 @@ data class CreateWarehouseRequest(
     val address: String?
 )
 
+data class CreateWarehouseFromTemplateRequest(
+    val name: String,
+    val address: String?,
+    val templateCode: String
+)
+
+data class WarehouseSetupResultDto(
+    val warehouseId: Int,
+    val warehouseName: String,
+    val roleCode: String,
+    val roleName: String,
+    val zonesCreated: Int,
+    val cellsCreated: Int
+)
+
 data class CreateProductRequest(
     val sku: String,
     val name: String,
@@ -239,6 +254,30 @@ class MicroMaxApiClient(
         )
     }
 
+    fun createWarehouseFromTemplate(request: CreateWarehouseFromTemplateRequest): WarehouseSetupResultDto {
+        val response = postJson(
+            path = "/api/warehouse-setup",
+            body = JSONObject().apply {
+                put("name", request.name)
+                put("address", request.address ?: JSONObject.NULL)
+                put("templateCode", request.templateCode)
+            }
+        )
+        return response.toWarehouseSetupResultDto()
+    }
+
+    fun getWarehouseSetupTemplates(): List<WarehouseSetupTemplate> {
+        return getArray("/api/warehouse-setup/templates").mapObjects { template ->
+            WarehouseSetupTemplate(
+                code = template.optString("code"),
+                name = template.optString("name"),
+                description = template.optString("description"),
+                zonesCount = template.optInt("zonesCount"),
+                cellsCount = template.optInt("cellsCount")
+            )
+        }
+    }
+
     fun getWarehouseUsers(warehouseId: Int): List<WarehouseUser> {
         return getArray("/api/warehouses/$warehouseId/users").mapObjects { user ->
             user.toWarehouseUser()
@@ -275,13 +314,7 @@ class MicroMaxApiClient(
     fun loadSnapshot(): WarehouseSnapshot {
         return WarehouseSnapshot(
             products = getArray("/api/products").mapObjects {
-                ProductDto(
-                    id = it.getInt("id"),
-                    sku = it.optString("sku"),
-                    name = it.optString("name"),
-                    unit = it.optString("unit"),
-                    minQuantity = it.optDouble("minQuantity")
-                )
+                it.toProductDto()
             },
             cells = getArray("/api/cells").mapObjects {
                 CellDto(
@@ -294,31 +327,16 @@ class MicroMaxApiClient(
                 )
             },
             stocks = getArray("/api/stocks").mapObjects {
-                StockDto(
-                    productName = it.optString("productName"),
-                    sku = it.optString("sku"),
-                    cellCode = it.optString("cellCode"),
-                    zoneCode = it.optString("zoneCode"),
-                    quantity = it.optDouble("quantity"),
-                    unit = it.optString("unit")
-                )
+                it.toStockDto()
             },
             operations = getArray("/api/operations").mapObjects {
-                OperationDto(
-                    id = it.getInt("id"),
-                    warehouseId = it.optInt("warehouseId"),
-                    type = it.optString("type"),
-                    productName = it.optString("productName"),
-                    sourceCell = it.optNullableString("sourceCell"),
-                    targetCell = it.optNullableString("targetCell"),
-                    appUserId = it.optNullableInt("appUserId"),
-                    performedBy = it.optNullableString("performedBy"),
-                    quantity = it.optDouble("quantity"),
-                    comment = it.optNullableString("comment"),
-                    createdAt = it.optString("createdAt")
-                )
+                it.toOperationDto()
             }
         )
+    }
+
+    fun loadSnapshot(warehouseId: Int): WarehouseSnapshot {
+        return getObject("/api/warehouses/$warehouseId/snapshot").toWarehouseSnapshot()
     }
 
     fun receive(productId: Int, targetCellId: Int, quantity: Double, comment: String? = null) {
@@ -330,8 +348,26 @@ class MicroMaxApiClient(
         })
     }
 
+    fun receive(warehouseId: Int, productId: Int, targetCellId: Int, quantity: Double, comment: String? = null) {
+        postJson("/api/warehouses/$warehouseId/operations/receive", JSONObject().apply {
+            put("productId", productId)
+            put("targetCellId", targetCellId)
+            put("quantity", quantity)
+            put("comment", buildComment(comment))
+        })
+    }
+
     fun writeOff(productId: Int, sourceCellId: Int, quantity: Double, comment: String? = null) {
         postJson("/api/operations/write-off", JSONObject().apply {
+            put("productId", productId)
+            put("sourceCellId", sourceCellId)
+            put("quantity", quantity)
+            put("comment", buildComment(comment))
+        })
+    }
+
+    fun writeOff(warehouseId: Int, productId: Int, sourceCellId: Int, quantity: Double, comment: String? = null) {
+        postJson("/api/warehouses/$warehouseId/operations/write-off", JSONObject().apply {
             put("productId", productId)
             put("sourceCellId", sourceCellId)
             put("quantity", quantity)
@@ -349,8 +385,34 @@ class MicroMaxApiClient(
         })
     }
 
+    fun move(
+        warehouseId: Int,
+        productId: Int,
+        sourceCellId: Int,
+        targetCellId: Int,
+        quantity: Double,
+        comment: String? = null
+    ) {
+        postJson("/api/warehouses/$warehouseId/operations/move", JSONObject().apply {
+            put("productId", productId)
+            put("sourceCellId", sourceCellId)
+            put("targetCellId", targetCellId)
+            put("quantity", quantity)
+            put("comment", buildComment(comment))
+        })
+    }
+
     fun adjust(productId: Int, targetCellId: Int, targetQuantity: Double, comment: String? = null) {
         postJson("/api/operations/adjust", JSONObject().apply {
+            put("productId", productId)
+            put("targetCellId", targetCellId)
+            put("targetQuantity", targetQuantity)
+            put("comment", buildComment(comment))
+        })
+    }
+
+    fun adjust(warehouseId: Int, productId: Int, targetCellId: Int, targetQuantity: Double, comment: String? = null) {
+        postJson("/api/warehouses/$warehouseId/operations/adjust", JSONObject().apply {
             put("productId", productId)
             put("targetCellId", targetCellId)
             put("targetQuantity", targetQuantity)
@@ -370,25 +432,32 @@ class MicroMaxApiClient(
             )
         })
 
-        return ProductDto(
-            id = response.getInt("id"),
-            sku = response.optString("sku"),
-            name = response.optString("name"),
-            unit = response.optString("unit"),
-            minQuantity = response.optDouble("minQuantity")
-        )
+        return response.toProductDto()
+    }
+
+    fun createProduct(warehouseId: Int, request: CreateProductRequest): ProductDto {
+        val response = postJson("/api/warehouses/$warehouseId/products", JSONObject().apply {
+            put("sku", request.sku)
+            put("name", request.name)
+            put("unit", request.unit)
+            put("minQuantity", request.minQuantity)
+            put(
+                "initialBarcode",
+                request.initialBarcode?.toJsonObject() ?: JSONObject.NULL
+            )
+        })
+
+        return response.toProductDto()
     }
 
     fun resolveBarcode(value: String): BarcodeResolveDto {
         val response = getObject("/api/barcodes/resolve?value=${encodeQueryValue(value)}")
-        return BarcodeResolveDto(
-            found = response.optBoolean("found"),
-            value = response.optString("value"),
-            entityType = response.optNullableString("entityType"),
-            entityId = response.optNullableInt("entityId"),
-            title = response.optNullableString("title"),
-            subtitle = response.optNullableString("subtitle")
-        )
+        return response.toBarcodeResolveDto()
+    }
+
+    fun resolveBarcode(warehouseId: Int, value: String): BarcodeResolveDto {
+        val response = getObject("/api/warehouses/$warehouseId/barcodes/resolve?value=${encodeQueryValue(value)}")
+        return response.toBarcodeResolveDto()
     }
 
     fun getProductBarcodes(productId: Int): List<BarcodeDto> {
@@ -397,8 +466,19 @@ class MicroMaxApiClient(
         }
     }
 
+    fun getProductBarcodes(warehouseId: Int, productId: Int): List<BarcodeDto> {
+        return getArray("/api/warehouses/$warehouseId/products/$productId/barcodes").mapObjects { barcode ->
+            barcode.toBarcodeDto()
+        }
+    }
+
     fun addProductBarcode(productId: Int, request: BarcodeDraftDto): BarcodeDto {
         val response = postJson("/api/products/$productId/barcodes", request.toJsonObject())
+        return response.toBarcodeDto()
+    }
+
+    fun addProductBarcode(warehouseId: Int, productId: Int, request: BarcodeDraftDto): BarcodeDto {
+        val response = postJson("/api/warehouses/$warehouseId/products/$productId/barcodes", request.toJsonObject())
         return response.toBarcodeDto()
     }
 
@@ -420,6 +500,13 @@ class MicroMaxApiClient(
         )
     }
 
+    fun deactivateBarcode(warehouseId: Int, barcodeId: Int) {
+        sendWithoutJsonResponse(
+            path = "/api/warehouses/$warehouseId/barcodes/$barcodeId",
+            method = "DELETE"
+        )
+    }
+
     fun updateProductMinQuantity(product: ProductDto, minQuantity: Double): ProductDto {
         val response = requestJsonObject(
             path = "/api/products/${product.id}",
@@ -433,13 +520,23 @@ class MicroMaxApiClient(
             }
         )
 
-        return ProductDto(
-            id = response.getInt("id"),
-            sku = response.optString("sku"),
-            name = response.optString("name"),
-            unit = response.optString("unit"),
-            minQuantity = response.optDouble("minQuantity")
+        return response.toProductDto()
+    }
+
+    fun updateProductMinQuantity(warehouseId: Int, product: ProductDto, minQuantity: Double): ProductDto {
+        val response = requestJsonObject(
+            path = "/api/warehouses/$warehouseId/products/${product.id}",
+            method = "PUT",
+            body = JSONObject().apply {
+                put("id", product.id)
+                put("sku", product.sku)
+                put("name", product.name)
+                put("unit", product.unit)
+                put("minQuantity", minQuantity)
+            }
         )
+
+        return response.toProductDto()
     }
 
     fun interpretAssistant(text: String): AssistantCommandDto {
@@ -448,29 +545,16 @@ class MicroMaxApiClient(
             body = JSONObject().put("text", text),
             timeouts = AssistantTimeouts
         )
-        return AssistantCommandDto(
-            commandId = response.optString("commandId"),
-            mode = response.optString("mode"),
-            provider = response.optString("provider"),
-            commandType = response.optString("commandType"),
-            riskLevel = response.optString("riskLevel"),
-            productId = response.optNullableInt("productId"),
-            sourceCellId = response.optNullableInt("sourceCellId"),
-            targetCellId = response.optNullableInt("targetCellId"),
-            quantity = response.optNullableDouble("quantity"),
-            minQuantity = response.optNullableDouble("minQuantity"),
-            summary = response.optString("summary"),
-            requiresConfirmation = response.optBoolean("requiresConfirmation"),
-            clarificationQuestion = response.optNullableString("clarificationQuestion"),
-            clarificationTarget = response.optNullableString("clarificationTarget"),
-            choices = response.optJSONArray("choices")?.mapObjects {
-                AssistantChoiceDto(
-                    id = it.optString("id"),
-                    label = it.optString("label"),
-                    kind = it.optString("kind")
-                )
-            }.orEmpty()
+        return response.toAssistantCommandDto()
+    }
+
+    fun interpretAssistant(warehouseId: Int, text: String): AssistantCommandDto {
+        val response = postJson(
+            path = "/api/warehouses/$warehouseId/assistant/interpret",
+            body = JSONObject().put("text", text),
+            timeouts = AssistantTimeouts
         )
+        return response.toAssistantCommandDto()
     }
 
     fun confirmAssistant(commandId: String, confirmed: Boolean = true): AssistantCommandResultDto {
@@ -478,11 +562,15 @@ class MicroMaxApiClient(
             put("commandId", commandId)
             put("confirmed", confirmed)
         })
-        return AssistantCommandResultDto(
-            success = response.optBoolean("success"),
-            message = response.optString("message"),
-            details = response.optJSONArray("details")?.mapStrings().orEmpty()
-        )
+        return response.toAssistantCommandResultDto()
+    }
+
+    fun confirmAssistant(warehouseId: Int, commandId: String, confirmed: Boolean = true): AssistantCommandResultDto {
+        val response = postJson("/api/warehouses/$warehouseId/assistant/confirm", JSONObject().apply {
+            put("commandId", commandId)
+            put("confirmed", confirmed)
+        })
+        return response.toAssistantCommandResultDto()
     }
 
     fun clarifyAssistant(commandId: String, choiceId: String): AssistantCommandDto {
@@ -494,29 +582,19 @@ class MicroMaxApiClient(
             },
             timeouts = AssistantTimeouts
         )
-        return AssistantCommandDto(
-            commandId = response.optString("commandId"),
-            mode = response.optString("mode"),
-            provider = response.optString("provider"),
-            commandType = response.optString("commandType"),
-            riskLevel = response.optString("riskLevel"),
-            productId = response.optNullableInt("productId"),
-            sourceCellId = response.optNullableInt("sourceCellId"),
-            targetCellId = response.optNullableInt("targetCellId"),
-            quantity = response.optNullableDouble("quantity"),
-            minQuantity = response.optNullableDouble("minQuantity"),
-            summary = response.optString("summary"),
-            requiresConfirmation = response.optBoolean("requiresConfirmation"),
-            clarificationQuestion = response.optNullableString("clarificationQuestion"),
-            clarificationTarget = response.optNullableString("clarificationTarget"),
-            choices = response.optJSONArray("choices")?.mapObjects {
-                AssistantChoiceDto(
-                    id = it.optString("id"),
-                    label = it.optString("label"),
-                    kind = it.optString("kind")
-                )
-            }.orEmpty()
+        return response.toAssistantCommandDto()
+    }
+
+    fun clarifyAssistant(warehouseId: Int, commandId: String, choiceId: String): AssistantCommandDto {
+        val response = postJson(
+            path = "/api/warehouses/$warehouseId/assistant/clarify",
+            body = JSONObject().apply {
+                put("commandId", commandId)
+                put("choiceId", choiceId)
+            },
+            timeouts = AssistantTimeouts
         )
+        return response.toAssistantCommandDto()
     }
 
     fun loadAssistantCommands(): List<AssistantCommandDefinitionDto> {
@@ -763,6 +841,117 @@ private fun JSONObject.toBarcodeDto(): BarcodeDto {
         isActive = optBoolean("isActive"),
         createdAt = optString("createdAt"),
         createdByUserId = optInt("createdByUserId")
+    )
+}
+
+private fun JSONObject.toProductDto(): ProductDto {
+    return ProductDto(
+        id = getInt("id"),
+        sku = optString("sku"),
+        name = optString("name"),
+        unit = optString("unit"),
+        minQuantity = optDouble("minQuantity")
+    )
+}
+
+private fun JSONObject.toStockDto(): StockDto {
+    return StockDto(
+        productName = optString("productName"),
+        sku = optString("sku"),
+        cellCode = optString("cellCode"),
+        zoneCode = optString("zoneCode"),
+        quantity = optDouble("quantity"),
+        unit = optString("unit")
+    )
+}
+
+private fun JSONObject.toOperationDto(): OperationDto {
+    return OperationDto(
+        id = getInt("id"),
+        warehouseId = optInt("warehouseId"),
+        type = optString("type"),
+        productName = optString("productName"),
+        sourceCell = optNullableString("sourceCell"),
+        targetCell = optNullableString("targetCell"),
+        appUserId = optNullableInt("appUserId"),
+        performedBy = optNullableString("performedBy"),
+        quantity = optDouble("quantity"),
+        comment = optNullableString("comment"),
+        createdAt = optString("createdAt")
+    )
+}
+
+private fun JSONObject.toWarehouseSnapshot(): WarehouseSnapshot {
+    return WarehouseSnapshot(
+        products = optJSONArray("products")?.mapObjects { it.toProductDto() }.orEmpty(),
+        cells = optJSONArray("cells")?.mapObjects {
+            CellDto(
+                id = it.getInt("id"),
+                code = it.optString("code"),
+                name = it.optString("name"),
+                warehouseId = it.optInt("warehouseId"),
+                zoneCode = it.optString("zoneCode"),
+                warehouseName = it.optString("warehouseName")
+            )
+        }.orEmpty(),
+        stocks = optJSONArray("stocks")?.mapObjects { it.toStockDto() }.orEmpty(),
+        operations = optJSONArray("operations")?.mapObjects { it.toOperationDto() }.orEmpty()
+    )
+}
+
+private fun JSONObject.toBarcodeResolveDto(): BarcodeResolveDto {
+    return BarcodeResolveDto(
+        found = optBoolean("found"),
+        value = optString("value"),
+        entityType = optNullableString("entityType"),
+        entityId = optNullableInt("entityId"),
+        title = optNullableString("title"),
+        subtitle = optNullableString("subtitle")
+    )
+}
+
+private fun JSONObject.toAssistantCommandDto(): AssistantCommandDto {
+    return AssistantCommandDto(
+        commandId = optString("commandId"),
+        mode = optString("mode"),
+        provider = optString("provider"),
+        commandType = optString("commandType"),
+        riskLevel = optString("riskLevel"),
+        productId = optNullableInt("productId"),
+        sourceCellId = optNullableInt("sourceCellId"),
+        targetCellId = optNullableInt("targetCellId"),
+        quantity = optNullableDouble("quantity"),
+        minQuantity = optNullableDouble("minQuantity"),
+        summary = optString("summary"),
+        requiresConfirmation = optBoolean("requiresConfirmation"),
+        clarificationQuestion = optNullableString("clarificationQuestion"),
+        clarificationTarget = optNullableString("clarificationTarget"),
+        choices = optJSONArray("choices")?.mapObjects {
+            AssistantChoiceDto(
+                id = it.optString("id"),
+                label = it.optString("label"),
+                kind = it.optString("kind")
+            )
+        }.orEmpty()
+    )
+}
+
+private fun JSONObject.toAssistantCommandResultDto(): AssistantCommandResultDto {
+    return AssistantCommandResultDto(
+        success = optBoolean("success"),
+        message = optString("message"),
+        details = optJSONArray("details")?.mapStrings().orEmpty()
+    )
+}
+
+private fun JSONObject.toWarehouseSetupResultDto(): WarehouseSetupResultDto {
+    return WarehouseSetupResultDto(
+        warehouseId = getInt("warehouseId"),
+        warehouseName = optString("warehouseName"),
+        roleCode = optString("roleCode"),
+        roleName = optString("roleName"),
+        zonesCreated = optInt("zonesCreated"),
+        cellsCreated = optInt("cellsCreated")
     )
 }
 

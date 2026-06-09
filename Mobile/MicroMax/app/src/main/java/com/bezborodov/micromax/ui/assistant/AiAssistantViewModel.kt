@@ -17,7 +17,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class AiAssistantViewModel(
-    private val apiClient: MicroMaxApiClient
+    private val apiClient: MicroMaxApiClient,
+    private val warehouseId: Int
 ) : ViewModel() {
     var uiState by mutableStateOf(AiAssistantUiState())
         private set
@@ -26,7 +27,12 @@ class AiAssistantViewModel(
         uiState = uiState.copy(
             isOpen = true,
             messages = uiState.messages.ifEmpty {
-                listOf(AiChatMessage("Я помогу найти товар, показать остатки или подготовить складскую операцию. Опасные действия выполняются только после подтверждения.", false))
+                listOf(
+                    AiChatMessage(
+                        "Я помогу найти товар, показать остатки или подготовить складскую операцию. Опасные действия выполняются только после подтверждения.",
+                        false
+                    )
+                )
             }
         )
         loadCommandsIfNeeded()
@@ -54,7 +60,9 @@ class AiAssistantViewModel(
         viewModelScope.launch {
             uiState = uiState.copy(isProcessing = true)
             val result = runCatching {
-                withContext(Dispatchers.IO) { apiClient.confirmAssistant(command.commandId).toUiResult(command) }
+                withContext(Dispatchers.IO) {
+                    apiClient.confirmAssistant(warehouseId, command.commandId).toUiResult(command)
+                }
             }.getOrElse { error ->
                 if (handleUnauthorizedDuringAction(error)) {
                     return@launch
@@ -83,7 +91,9 @@ class AiAssistantViewModel(
             uiState = uiState.copy(isProcessing = true, lastResult = null)
 
             val response = runCatching {
-                withContext(Dispatchers.IO) { apiClient.clarifyAssistant(command.commandId, choiceId).toUiCommand() }
+                withContext(Dispatchers.IO) {
+                    apiClient.clarifyAssistant(warehouseId, command.commandId, choiceId).toUiCommand()
+                }
             }.getOrElse { error ->
                 if (handleUnauthorizedDuringAction(error)) {
                     return@launch
@@ -117,7 +127,7 @@ class AiAssistantViewModel(
             )
 
             val response = runCatching {
-                withContext(Dispatchers.IO) { apiClient.interpretAssistant(text).toUiCommand() }
+                withContext(Dispatchers.IO) { apiClient.interpretAssistant(warehouseId, text).toUiCommand() }
             }.getOrElse { error ->
                 if (handleUnauthorizedDuringAction(error)) {
                     return@launch
@@ -198,7 +208,9 @@ class AiAssistantViewModel(
         viewModelScope.launch {
             uiState = uiState.copy(isProcessing = true)
             val result = runCatching {
-                withContext(Dispatchers.IO) { apiClient.confirmAssistant(command.commandId, confirmed = false) }
+                withContext(Dispatchers.IO) {
+                    apiClient.confirmAssistant(warehouseId, command.commandId, confirmed = false)
+                }
             }.fold(
                 onSuccess = { response ->
                     AiAssistantResult(
@@ -272,12 +284,13 @@ class AiAssistantViewModel(
 }
 
 class AiAssistantViewModelFactory(
-    private val apiClient: MicroMaxApiClient
+    private val apiClient: MicroMaxApiClient,
+    private val warehouseId: Int
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AiAssistantViewModel::class.java)) {
-            return AiAssistantViewModel(apiClient) as T
+            return AiAssistantViewModel(apiClient, warehouseId) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

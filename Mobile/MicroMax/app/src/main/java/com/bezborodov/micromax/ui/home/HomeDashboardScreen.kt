@@ -22,6 +22,7 @@ fun HomeDashboardScreen(
     warehouseName: String?,
     canCreateProducts: Boolean,
     canExecuteOperations: Boolean,
+    onOpenWarehouseMenu: () -> Unit,
     onOpenItems: () -> Unit,
     onOpenAddItem: () -> Unit,
     onOpenCells: () -> Unit,
@@ -32,13 +33,18 @@ fun HomeDashboardScreen(
     LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Text(
-                text = warehouseName ?: "Главное окно",
+                text = warehouseName ?: "Склад не выбран",
                 style = MaterialTheme.typography.labelMedium,
                 color = TextSecondary
             )
         }
 
-        item { HeaderCompanyBlock(companyName = warehouseName ?: state.companyName) }
+        item {
+            HeaderCompanyBlock(
+                companyName = "Микросклад",
+                onClick = onOpenWarehouseMenu
+            )
+        }
 
         item {
             DailyStatsCard(

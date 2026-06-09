@@ -31,12 +31,12 @@ class SessionRepository(
 
     fun login(email: String, password: String): AuthSession {
         val tokens = apiClient.login(email, password)
-        return loadCurrentUserForTokens(tokens, sessionStore.loadSession()?.activeWarehouseIdForSettings)
+        return loadCurrentUserForTokens(tokens, sessionStore.loadSession()?.selectedWarehouse?.warehouseId)
     }
 
     fun register(email: String, password: String, displayName: String): AuthSession {
         val tokens = apiClient.register(email, password, displayName)
-        return loadCurrentUserForTokens(tokens, sessionStore.loadSession()?.activeWarehouseIdForSettings)
+        return loadCurrentUserForTokens(tokens, sessionStore.loadSession()?.selectedWarehouse?.warehouseId)
     }
 
     fun logout() {
@@ -58,15 +58,28 @@ class SessionRepository(
         return updatedSession
     }
 
-    fun createFirstWarehouse(name: String, address: String?): AuthSession {
-        apiClient.createWarehouse(CreateWarehouseRequest(name.trim(), address?.trim()?.ifBlank { null }))
-        return loadCurrentUser()
+    fun createWarehouse(name: String, address: String?): AuthSession {
+        val warehouse = apiClient.createWarehouse(CreateWarehouseRequest(name.trim(), address?.trim()?.ifBlank { null }))
+        return loadCurrentUserForNewWarehouse(warehouse.id)
+    }
+
+    fun createWarehouseFromTemplate(name: String, address: String?, templateCode: String): AuthSession {
+        val warehouse = apiClient.createWarehouseFromTemplate(
+            CreateWarehouseFromTemplateRequest(
+                name = name.trim(),
+                address = address?.trim()?.ifBlank { null },
+                templateCode = templateCode
+            )
+        )
+        return loadCurrentUserForNewWarehouse(warehouse.warehouseId)
     }
 
     fun selectActiveWarehouse(warehouseId: Int): AuthSession {
         val session = sessionStore.loadSession()
             ?: throw UnauthorizedException("Сессия отсутствует. Войдите снова.")
-        val updatedSession = normalizeSession(session.copy(activeWarehouseIdForSettings = warehouseId))
+        val selectedWarehouse = session.user.warehouses.firstOrNull { it.warehouseId == warehouseId }
+            ?: throw ApiException("Выбранный склад больше недоступен.")
+        val updatedSession = normalizeSession(session.copy(selectedWarehouse = selectedWarehouse))
         sessionStore.saveSession(updatedSession)
         return updatedSession
     }
@@ -85,6 +98,10 @@ class SessionRepository(
 
     fun removeWarehouseUser(warehouseId: Int, userId: Int) {
         apiClient.removeWarehouseUser(warehouseId, userId)
+    }
+
+    fun loadWarehouseSetupTemplates(): List<WarehouseSetupTemplate> {
+        return apiClient.getWarehouseSetupTemplates()
     }
 
     override fun getSession(): AuthSession? = sessionStore.loadSession()
@@ -106,7 +123,7 @@ class SessionRepository(
 
             return@withLock loadCurrentUserForTokens(
                 tokens = refreshedTokens,
-                previousActiveWarehouseId = currentSession.activeWarehouseIdForSettings
+                previousSelectedWarehouseId = currentSession.selectedWarehouse?.warehouseId
             )
         }
     }
@@ -117,7 +134,7 @@ class SessionRepository(
 
     private fun loadCurrentUserForTokens(
         tokens: AuthTokens,
-        previousActiveWarehouseId: Int?
+        previousSelectedWarehouseId: Int?
     ): AuthSession {
         val user = apiClient.getCurrentUser(accessTokenOverride = tokens.accessToken)
         val session = normalizeSession(
@@ -126,18 +143,28 @@ class SessionRepository(
                 accessTokenExpiresAt = tokens.accessTokenExpiresAt,
                 refreshToken = tokens.refreshToken,
                 user = user,
-                activeWarehouseIdForSettings = previousActiveWarehouseId
+                selectedWarehouse = user.warehouses.firstOrNull { it.warehouseId == previousSelectedWarehouseId }
             )
         )
         sessionStore.saveSession(session)
         return session
     }
 
-    private fun normalizeSession(session: AuthSession): AuthSession {
-        val activeWarehouseId = session.activeWarehouseIdForSettings
-            ?.takeIf { selectedWarehouseId -> session.user.warehouses.any { it.warehouseId == selectedWarehouseId } }
-            ?: session.user.warehouses.firstOrNull()?.warehouseId
+    private fun loadCurrentUserForNewWarehouse(warehouseId: Int): AuthSession {
+        val session = loadCurrentUser()
+        val selectedWarehouse = session.user.warehouses.firstOrNull { it.warehouseId == warehouseId }
+            ?: return session
+        val updatedSession = normalizeSession(session.copy(selectedWarehouse = selectedWarehouse))
+        sessionStore.saveSession(updatedSession)
+        return updatedSession
+    }
 
-        return session.copy(activeWarehouseIdForSettings = activeWarehouseId)
+    private fun normalizeSession(session: AuthSession): AuthSession {
+        val selectedWarehouseId = session.selectedWarehouse?.warehouseId
+        val selectedWarehouse = selectedWarehouseId
+            ?.let { warehouseId -> session.user.warehouses.firstOrNull { it.warehouseId == warehouseId } }
+            ?: session.user.warehouses.singleOrNull()
+
+        return session.copy(selectedWarehouse = selectedWarehouse)
     }
 }

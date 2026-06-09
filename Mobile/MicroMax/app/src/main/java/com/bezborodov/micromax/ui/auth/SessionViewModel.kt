@@ -113,7 +113,7 @@ class SessionViewModel(
         )
     }
 
-    fun createFirstWarehouse(name: String, address: String?) {
+    fun createWarehouse(name: String, address: String?) {
         if (name.isBlank()) {
             uiState = uiState.copy(message = "Укажите название склада.")
             return
@@ -122,20 +122,51 @@ class SessionViewModel(
         viewModelScope.launch {
             uiState = uiState.copy(isCreatingWarehouse = true, message = null)
             val result = runCatching {
-                withContext(Dispatchers.IO) { sessionRepository.createFirstWarehouse(name, address) }
+                withContext(Dispatchers.IO) { sessionRepository.createWarehouse(name, address) }
             }
 
             uiState = result.fold(
                 onSuccess = { session ->
                     SessionUiState(
                         isRestoringSession = false,
-                        currentSession = session
+                        currentSession = session,
+                        warehouseSetupTemplates = uiState.warehouseSetupTemplates
                     )
                 },
                 onFailure = {
                     uiState.copy(
                         isCreatingWarehouse = false,
                         message = it.message ?: "Не удалось создать склад."
+                    )
+                }
+            )
+        }
+    }
+
+    fun createWarehouseFromTemplate(name: String, address: String?, templateCode: String) {
+        if (name.isBlank()) {
+            uiState = uiState.copy(message = "Укажите название склада.")
+            return
+        }
+
+        viewModelScope.launch {
+            uiState = uiState.copy(isCreatingWarehouse = true, message = null)
+            val result = runCatching {
+                withContext(Dispatchers.IO) { sessionRepository.createWarehouseFromTemplate(name, address, templateCode) }
+            }
+
+            uiState = result.fold(
+                onSuccess = { session ->
+                    SessionUiState(
+                        isRestoringSession = false,
+                        currentSession = session,
+                        warehouseSetupTemplates = uiState.warehouseSetupTemplates
+                    )
+                },
+                onFailure = {
+                    uiState.copy(
+                        isCreatingWarehouse = false,
+                        message = it.message ?: "Не удалось создать склад по шаблону."
                     )
                 }
             )
@@ -255,6 +286,42 @@ class SessionViewModel(
         }
     }
 
+    fun loadWarehouseTemplatesIfNeeded(force: Boolean = false) {
+        if (uiState.isWarehouseTemplatesLoading) {
+            return
+        }
+        if (!force && uiState.warehouseSetupTemplates.isNotEmpty()) {
+            return
+        }
+
+        viewModelScope.launch {
+            uiState = uiState.copy(isWarehouseTemplatesLoading = true, message = null)
+            val result = runCatching {
+                withContext(Dispatchers.IO) { sessionRepository.loadWarehouseSetupTemplates() }
+            }
+
+            uiState = result.fold(
+                onSuccess = { templates ->
+                    uiState.copy(
+                        isWarehouseTemplatesLoading = false,
+                        warehouseSetupTemplates = templates
+                    )
+                },
+                onFailure = {
+                    if (it is UnauthorizedException) {
+                        handleUnauthorized()
+                        uiState
+                    } else {
+                        uiState.copy(
+                            isWarehouseTemplatesLoading = false,
+                            message = it.message ?: "Не удалось загрузить шаблоны настройки склада."
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     fun clearMessage() {
         if (uiState.message == null) {
             return
@@ -283,6 +350,7 @@ class SessionViewModel(
                 onSuccess = { updatedState ->
                     updatedState.copy(
                         isWarehouseUserSubmitting = false,
+                        warehouseSetupTemplates = uiState.warehouseSetupTemplates,
                         message = successMessage
                     )
                 },
@@ -303,21 +371,21 @@ class SessionViewModel(
 
     private fun SessionRepository.reloadSessionAndUsers(): SessionUiState {
         val session = loadCurrentUser()
-        val selectedWarehouseId = session.activeWarehouseIdForSettings
-        val selectedWarehouse = session.user.warehouses.firstOrNull { it.warehouseId == selectedWarehouseId }
+        val selectedWarehouseId = session.selectedWarehouse?.warehouseId
+        val selectedWarehouse = session.selectedWarehouse
         val users = if (selectedWarehouse?.roleCode == RoleAdmin && selectedWarehouseId != null) {
             loadWarehouseUsers(selectedWarehouseId)
         } else {
             emptyList()
         }
 
-        val state = SessionUiState(
+        return SessionUiState(
             isRestoringSession = false,
             currentSession = session,
             warehouseUsers = users,
-            loadedWarehouseUsersWarehouseId = if (users.isEmpty()) null else selectedWarehouseId
+            loadedWarehouseUsersWarehouseId = if (users.isEmpty()) null else selectedWarehouseId,
+            warehouseSetupTemplates = uiState.warehouseSetupTemplates
         )
-        return state
     }
 }
 

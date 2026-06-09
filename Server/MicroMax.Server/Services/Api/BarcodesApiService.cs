@@ -10,12 +10,24 @@ public sealed class BarcodesApiService(
     Data.MicroMaxDbContext db,
     WarehousePermissionService warehousePermissionService)
 {
+    public Task<BarcodeResolveResponse> ResolveAsync(
+        int userId,
+        string value,
+        CancellationToken cancellationToken = default) =>
+        ResolveAsync(userId, null, value, cancellationToken);
+
     public async Task<BarcodeResolveResponse> ResolveAsync(
         int userId,
+        int? warehouseId,
         string value,
         CancellationToken cancellationToken = default)
     {
         var normalizedValue = NormalizeValue(value);
+
+        if (warehouseId is not null)
+        {
+            await warehousePermissionService.EnsureWarehouseAccessAsync(userId, warehouseId.Value, cancellationToken);
+        }
 
         var barcode = await db.Barcodes
             .AsNoTracking()
@@ -28,20 +40,47 @@ public sealed class BarcodesApiService(
             return new BarcodeResolveResponse(false, normalizedValue);
         }
 
+        if (warehouseId is not null && barcode.EntityType == BarcodeEntityType.Cell)
+        {
+            var barcodeWarehouseId = await warehousePermissionService.GetWarehouseIdForCellAsync(barcode.EntityId, cancellationToken);
+            if (barcodeWarehouseId != warehouseId.Value)
+            {
+                return new BarcodeResolveResponse(false, normalizedValue);
+            }
+        }
+
         return barcode.EntityType switch
         {
-            BarcodeEntityType.Product => await ResolveProductAsync(userId, normalizedValue, barcode.EntityId, cancellationToken),
+            BarcodeEntityType.Product => await ResolveProductAsync(userId, warehouseId, normalizedValue, barcode.EntityId, cancellationToken),
             BarcodeEntityType.Cell => await ResolveCellAsync(userId, normalizedValue, barcode.EntityId, cancellationToken),
             _ => throw new ApiValidationException("Не удалось определить тип объекта, привязанного к штрих-коду.")
         };
     }
 
+    public Task<IReadOnlyList<BarcodeResponse>> GetProductBarcodesAsync(
+        int userId,
+        int productId,
+        CancellationToken cancellationToken = default) =>
+        GetProductBarcodesAsync(userId, null, productId, cancellationToken);
+
     public async Task<IReadOnlyList<BarcodeResponse>> GetProductBarcodesAsync(
         int userId,
+        int? warehouseId,
         int productId,
         CancellationToken cancellationToken = default)
     {
-        await warehousePermissionService.EnsureAnyWarehouseAccessAsync(userId, cancellationToken);
+        if (warehouseId is null)
+        {
+            await warehousePermissionService.EnsureAnyWarehouseAccessAsync(userId, cancellationToken);
+        }
+        else
+        {
+            await warehousePermissionService.EnsureWarehousePermissionAsync(
+                userId,
+                warehouseId.Value,
+                WarehousePermission.ProductRead,
+                cancellationToken);
+        }
 
         if (!await db.Products.AnyAsync(x => x.Id == productId, cancellationToken))
         {
@@ -66,13 +105,28 @@ public sealed class BarcodesApiService(
         return await GetEntityBarcodesAsync(BarcodeEntityType.Cell, cellId, cancellationToken);
     }
 
+    public Task<BarcodeResponse> CreateProductBarcodeAsync(
+        int userId,
+        int productId,
+        BarcodeDraftRequest request,
+        CancellationToken cancellationToken = default) =>
+        CreateProductBarcodeAsync(userId, null, productId, request, cancellationToken);
+
     public async Task<BarcodeResponse> CreateProductBarcodeAsync(
         int userId,
+        int? warehouseId,
         int productId,
         BarcodeDraftRequest request,
         CancellationToken cancellationToken = default)
     {
-        await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+        if (warehouseId is null)
+        {
+            await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+        }
+        else
+        {
+            await warehousePermissionService.EnsureProductManagementAccessAsync(userId, warehouseId.Value, cancellationToken);
+        }
 
         if (!await db.Products.AnyAsync(x => x.Id == productId, cancellationToken))
         {
@@ -98,12 +152,19 @@ public sealed class BarcodesApiService(
         return await CreateBarcodeAsync(userId, BarcodeEntityType.Cell, cellId, request, cancellationToken);
     }
 
-    public async Task DeactivateAsync(int userId, int barcodeId, CancellationToken cancellationToken = default)
+    public Task DeactivateAsync(int userId, int barcodeId, CancellationToken cancellationToken = default) =>
+        DeactivateAsync(userId, null, barcodeId, cancellationToken);
+
+    public async Task DeactivateAsync(
+        int userId,
+        int? warehouseId,
+        int barcodeId,
+        CancellationToken cancellationToken = default)
     {
         var barcode = await db.Barcodes.FirstOrDefaultAsync(x => x.Id == barcodeId, cancellationToken)
             ?? throw new ApiNotFoundException("Штрих-код не найден.");
 
-        await EnsureBarcodeManagementAccessAsync(userId, barcode, cancellationToken);
+        await EnsureBarcodeManagementAccessAsync(userId, warehouseId, barcode, cancellationToken);
 
         if (!barcode.IsActive)
         {
@@ -175,11 +236,15 @@ public sealed class BarcodesApiService(
 
     private async Task<BarcodeResolveResponse> ResolveProductAsync(
         int userId,
+        int? warehouseId,
         string normalizedValue,
         int productId,
         CancellationToken cancellationToken)
     {
-        await warehousePermissionService.EnsureAnyWarehouseAccessAsync(userId, cancellationToken);
+        if (warehouseId is null)
+        {
+            await warehousePermissionService.EnsureAnyWarehouseAccessAsync(userId, cancellationToken);
+        }
 
         var product = await db.Products
             .Where(x => x.Id == productId)
@@ -326,23 +391,38 @@ public sealed class BarcodesApiService(
 
     private async Task EnsureBarcodeManagementAccessAsync(
         int userId,
+        int? warehouseId,
         Barcode barcode,
         CancellationToken cancellationToken)
     {
         switch (barcode.EntityType)
         {
             case BarcodeEntityType.Product:
-                await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+                if (warehouseId is null)
+                {
+                    await warehousePermissionService.EnsureProductManagementAccessAsync(userId, cancellationToken);
+                }
+                else
+                {
+                    await warehousePermissionService.EnsureProductManagementAccessAsync(userId, warehouseId.Value, cancellationToken);
+                }
                 break;
 
             case BarcodeEntityType.Cell:
-                var warehouseId = await warehousePermissionService.GetWarehouseIdForCellAsync(barcode.EntityId, cancellationToken);
+            {
+                var actualWarehouseId = await warehousePermissionService.GetWarehouseIdForCellAsync(barcode.EntityId, cancellationToken);
+                if (warehouseId is not null && actualWarehouseId != warehouseId.Value)
+                {
+                    throw new ApiConflictException("Штрих-код относится к другому складу.");
+                }
+
                 await warehousePermissionService.EnsureWarehousePermissionAsync(
                     userId,
-                    warehouseId,
+                    actualWarehouseId,
                     WarehousePermission.WarehouseManage,
                     cancellationToken);
                 break;
+            }
 
             default:
                 throw new ApiValidationException("Не удалось определить права на управление штрих-кодом.");

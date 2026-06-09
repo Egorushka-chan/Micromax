@@ -126,10 +126,15 @@ fun FirstLoadErrorState(
 }
 
 @Composable
-fun HeaderCompanyBlock(companyName: String) {
+fun HeaderCompanyBlock(
+    companyName: String,
+    onClick: (() -> Unit)? = null
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
             .padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
