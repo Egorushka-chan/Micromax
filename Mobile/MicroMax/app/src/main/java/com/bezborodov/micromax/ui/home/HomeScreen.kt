@@ -91,15 +91,17 @@ fun HomeScreen(
 ) {
     val userId = sessionState.currentUser?.id ?: 0
     val selectedWarehouseId = sessionState.selectedWarehouseId ?: return
+    // ViewModel must be recreated after re-login, otherwise stale reauthentication flags survive.
+    val sessionKey = sessionState.currentSession?.refreshToken ?: "anonymous"
     val lifecycleOwner = LocalLifecycleOwner.current
     val permissions = sessionState.permissions
     val scope = rememberCoroutineScope()
     val viewModel: WarehouseViewModel = viewModel(
-        key = "warehouse-$userId-$selectedWarehouseId",
+        key = "warehouse-$userId-$selectedWarehouseId-$sessionKey",
         factory = WarehouseViewModelFactory(apiClient, selectedWarehouseId)
     )
     val assistantViewModel: AiAssistantViewModel = viewModel(
-        key = "assistant-$userId-$selectedWarehouseId",
+        key = "assistant-$userId-$selectedWarehouseId-$sessionKey",
         factory = AiAssistantViewModelFactory(apiClient, selectedWarehouseId)
     )
 

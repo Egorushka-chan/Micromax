@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using MicroMax.Server.Configuration;
@@ -127,7 +126,8 @@ builder.Services.AddAuthentication(options =>
         var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
         if (string.IsNullOrWhiteSpace(jwtOptions.SecretKey) || jwtOptions.SecretKey.Length < 32)
         {
-            jwtOptions.SecretKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+            throw new InvalidOperationException(
+                "JWT SecretKey не настроен. Укажите стабильный ключ длиной не менее 32 символов в конфигурации сервера.");
         }
 
         options.TokenValidationParameters = new TokenValidationParameters

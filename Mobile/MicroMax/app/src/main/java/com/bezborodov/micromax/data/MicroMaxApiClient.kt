@@ -205,10 +205,12 @@ class MicroMaxApiClient(
     }
 
     fun refresh(refreshToken: String): AuthTokens {
-        val response = postJson(
+        val response = requestJsonObject(
             path = "/api/auth/refresh",
+            method = "POST",
             body = JSONObject().apply { put("refreshToken", refreshToken) },
-            authenticated = false
+            authenticated = false,
+            treatSessionFailureAsUnauthorized = true
         )
         return response.toAuthTokens()
     }
@@ -663,7 +665,8 @@ class MicroMaxApiClient(
         body: JSONObject? = null,
         timeouts: RequestTimeouts = DefaultTimeouts,
         authenticated: Boolean = true,
-        accessTokenOverride: String? = null
+        accessTokenOverride: String? = null,
+        treatSessionFailureAsUnauthorized: Boolean = false
     ): JSONObject {
         val response = executeRequest(
             path = path,
@@ -671,7 +674,8 @@ class MicroMaxApiClient(
             body = body,
             timeouts = timeouts,
             authenticated = authenticated,
-            accessTokenOverride = accessTokenOverride
+            accessTokenOverride = accessTokenOverride,
+            treatSessionFailureAsUnauthorized = treatSessionFailureAsUnauthorized
         )
         return response.body.let(::JSONObject)
     }
@@ -717,7 +721,8 @@ class MicroMaxApiClient(
         body: JSONObject? = null,
         timeouts: RequestTimeouts = DefaultTimeouts,
         authenticated: Boolean = true,
-        accessTokenOverride: String? = null
+        accessTokenOverride: String? = null,
+        treatSessionFailureAsUnauthorized: Boolean = false
     ): RawResponse {
         var canRetryAfterRefresh = authenticated && accessTokenOverride == null
 
@@ -758,6 +763,14 @@ class MicroMaxApiClient(
 
                     sessionAuthDelegate?.clearSession()
                     throw UnauthorizedException()
+                }
+
+                // Refresh-token endpoints must break the session flow once, not fall into repeated polling retries.
+                if (treatSessionFailureAsUnauthorized &&
+                    (response.statusCode == HttpURLConnection.HTTP_UNAUTHORIZED ||
+                        response.statusCode == HttpURLConnection.HTTP_FORBIDDEN)
+                ) {
+                    throw UnauthorizedException(parseErrorMessage(response))
                 }
 
                 if (response.statusCode !in 200..299) {

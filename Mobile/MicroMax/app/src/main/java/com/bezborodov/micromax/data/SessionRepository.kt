@@ -18,14 +18,16 @@ class SessionRepository(
     private val refreshMutex = Mutex()
 
     fun restoreSession(): AuthSession? {
-        if (sessionStore.loadSession() == null) {
-            return null
-        }
+        val storedSession = sessionStore.loadSession() ?: return null
 
         return runCatching { loadCurrentUser() }
-            .getOrElse {
-                clearSession()
-                null
+            .getOrElse { error ->
+                if (error is UnauthorizedException) {
+                    clearSession()
+                    null
+                } else {
+                    storedSession
+                }
             }
     }
 
@@ -114,9 +116,9 @@ class SessionRepository(
                 return@withLock currentSession
             }
 
-            val refreshedTokens = runCatching {
+            val refreshedTokens = try {
                 apiClient.refresh(currentSession.refreshToken)
-            }.getOrElse {
+            } catch (error: UnauthorizedException) {
                 clearSession()
                 return@withLock null
             }
@@ -136,7 +138,9 @@ class SessionRepository(
         tokens: AuthTokens,
         previousSelectedWarehouseId: Int?
     ): AuthSession {
-        val user = apiClient.getCurrentUser(accessTokenOverride = tokens.accessToken)
+        // The auth response already contains the user profile, so we save the rotated refresh token immediately.
+        val user = tokens.user.takeIf { it.id > 0 }
+            ?: apiClient.getCurrentUser(accessTokenOverride = tokens.accessToken)
         val session = normalizeSession(
             AuthSession(
                 accessToken = tokens.accessToken,
