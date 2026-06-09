@@ -30,11 +30,27 @@ public sealed class AdminPanelAuthTests : IClassFixture<AdminPanelWebApplication
     }
 
     [Fact]
-    public async Task AnonymousRequestToPanelRedirectsToLogin()
+    public async Task AnonymousRequestToPublicLandingReturnsOk()
     {
         using var client = CreateClient();
 
         var response = await client.GetAsync("/");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("MicroMax — управление микроскладом без лишней сложности", html);
+        Assert.Contains("Открыть админ-панель", html);
+        Assert.Contains("#features", html);
+        Assert.Contains("#audience", html);
+        Assert.Contains("подтверждения пользователя", html);
+    }
+
+    [Fact]
+    public async Task AnonymousRequestToAdminRedirectsToLogin()
+    {
+        using var client = CreateClient();
+
+        var response = await client.GetAsync("/admin");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.NotNull(response.Headers.Location);
@@ -68,13 +84,13 @@ public sealed class AdminPanelAuthTests : IClassFixture<AdminPanelWebApplication
 
         await LoginAsync(client, AdminEmail, AdminPassword);
 
-        var response = await client.GetAsync("/");
+        var response = await client.GetAsync("/admin");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Theory]
-    [InlineData("/")]
+    [InlineData("/admin")]
     [InlineData("/Warehouses")]
     [InlineData("/Zones")]
     [InlineData("/Cells")]
@@ -110,12 +126,12 @@ public sealed class AdminPanelAuthTests : IClassFixture<AdminPanelWebApplication
                 ["Input.Email"] = WorkerEmail,
                 ["Input.Password"] = WorkerPassword,
                 ["Input.RememberMe"] = "false",
-                ["ReturnUrl"] = "/"
+                ["ReturnUrl"] = "/admin"
             }));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var panelResponse = await client.GetAsync("/");
+        var panelResponse = await client.GetAsync("/admin");
         Assert.Equal(HttpStatusCode.Redirect, panelResponse.StatusCode);
     }
 
@@ -126,7 +142,7 @@ public sealed class AdminPanelAuthTests : IClassFixture<AdminPanelWebApplication
 
         await LoginAsync(client, AdminEmail, AdminPassword);
 
-        var panelPage = await client.GetAsync("/");
+        var panelPage = await client.GetAsync("/admin");
         Assert.Equal(HttpStatusCode.OK, panelPage.StatusCode);
 
         var logoutResponse = await client.PostAsync("/Logout", content: null);
@@ -134,7 +150,7 @@ public sealed class AdminPanelAuthTests : IClassFixture<AdminPanelWebApplication
         Assert.Equal(HttpStatusCode.Redirect, logoutResponse.StatusCode);
         Assert.Equal("/Login", logoutResponse.Headers.Location?.OriginalString);
 
-        var responseAfterLogout = await client.GetAsync("/");
+        var responseAfterLogout = await client.GetAsync("/admin");
         Assert.Equal(HttpStatusCode.Redirect, responseAfterLogout.StatusCode);
     }
 
@@ -361,11 +377,11 @@ public sealed class AdminPanelAuthTests : IClassFixture<AdminPanelWebApplication
                 ["Input.Email"] = email,
                 ["Input.Password"] = password,
                 ["Input.RememberMe"] = "false",
-                ["ReturnUrl"] = "/"
+                ["ReturnUrl"] = "/admin"
             }));
 
         Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
-        Assert.Equal("/", loginResponse.Headers.Location?.OriginalString);
+        Assert.Equal("/admin", loginResponse.Headers.Location?.OriginalString);
     }
 
     private async Task SeedWorkerAsync()

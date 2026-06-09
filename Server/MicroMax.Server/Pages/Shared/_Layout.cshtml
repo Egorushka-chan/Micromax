@@ -9,13 +9,16 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/MicroMax.Server.styles.css" asp-append-version="true" />
 </head>
-<body>
 @{
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
-    var showNavigation = currentPage is not "/Login" and not "/AccessDenied";
+    var isPublicLanding = string.Equals(currentPage, "/Index", StringComparison.OrdinalIgnoreCase);
+    var isAuthPage = currentPage is "/Login" or "/AccessDenied";
+    var showAdminNavigation = !isPublicLanding && !isAuthPage;
+    var bodyClass = isPublicLanding ? "landing-body" : showAdminNavigation ? "admin-body" : "auth-body";
+    var mainClass = isPublicLanding ? "landing-main" : "app-main";
     var navigationItems = new[]
     {
-        new { Label = "Главная", Page = "/Index" },
+        new { Label = "Главная", Page = "/Admin" },
         new { Label = "Склады", Page = "/Warehouses" },
         new { Label = "Зоны", Page = "/Zones" },
         new { Label = "Ячейки", Page = "/Cells" },
@@ -31,82 +34,128 @@
             ? "app-nav__link app-nav__link--active"
             : "app-nav__link";
 }
-    <div class="app-shell">
-        @if (showNavigation)
-        {
-            <header class="app-header">
-                <div class="app-header__inner">
-                    <a class="app-brand" asp-page="/Index">
-                        <span class="app-brand__eyebrow">Админ-панель</span>
-                        <span class="app-brand__name">MicroMax</span>
+<body class="@bodyClass">
+    @if (isPublicLanding)
+    {
+        <div class="landing-shell">
+            <header class="landing-header" id="landing-header">
+                <div class="landing-header__inner">
+                    <a class="landing-brand" asp-page="/Index">
+                        <span class="landing-brand__eyebrow">Micro warehouse management system</span>
+                        <span class="landing-brand__name">MicroMax</span>
                     </a>
-                    <nav class="app-nav app-nav--desktop" aria-label="Основное меню панели">
-                        @foreach (var item in navigationItems)
-                        {
-                            <a class="@GetNavLinkClass(item.Page)" asp-page="@item.Page">@item.Label</a>
-                        }
+                    <nav class="landing-nav" aria-label="Навигация по публичной странице">
+                        <a href="#features">Возможности</a>
+                        <a href="#audience">Для кого</a>
+                        <a href="#workflow">Как это работает</a>
+                        <a href="#assistant">Командный интерфейс</a>
                     </nav>
-                    <div class="admin-session admin-session--desktop">
-                        @if (User.Identity?.IsAuthenticated == true)
-                        {
-                            <span class="admin-session__name">@User.Identity.Name</span>
-                            <form method="post" asp-page="/Logout" class="admin-session__form">
-                                <button type="submit" class="admin-session__button">Выход</button>
-                            </form>
-                        }
-                        else
-                        {
-                            <a class="admin-session__link" asp-page="/Login">Вход</a>
-                        }
-                    </div>
-                    <details class="app-mobile-menu">
-                        <summary class="app-mobile-menu__toggle">Меню</summary>
-                        <div class="app-mobile-menu__panel">
-                            <nav class="app-nav app-nav--mobile" aria-label="Мобильное меню панели">
-                                @foreach (var item in navigationItems)
-                                {
-                                    <a class="@GetNavLinkClass(item.Page)" asp-page="@item.Page">@item.Label</a>
-                                }
-                            </nav>
-                            <div class="admin-session admin-session--mobile">
-                                @if (User.Identity?.IsAuthenticated == true)
-                                {
-                                    <span class="admin-session__name">@User.Identity.Name</span>
-                                    <form method="post" asp-page="/Logout" class="admin-session__form">
-                                        <button type="submit" class="admin-session__button">Выход</button>
-                                    </form>
-                                }
-                                else
-                                {
-                                    <a class="admin-session__link" asp-page="/Login">Вход</a>
-                                }
-                            </div>
-                        </div>
-                    </details>
+                    <a class="button-link landing-header__action" asp-page="/Admin">Открыть админ-панель</a>
                 </div>
             </header>
-        }
-        else
-        {
-            <header class="auth-header">
-                <a class="app-brand app-brand--compact" asp-page="/Index">
-                    <span class="app-brand__eyebrow">MicroMax</span>
-                    <span class="app-brand__name">Система микросклада</span>
-                </a>
-            </header>
-        }
 
-        <main role="main" class="app-main">
-            @RenderBody()
-        </main>
-    </div>
+            <main role="main" class="@mainClass">
+                @RenderBody()
+            </main>
 
-    <footer class="app-footer">
-        <div class="app-footer__inner">
-            <span>&copy; 2026 MicroMax</span>
-            <span>Административная панель MVP</span>
+            <footer class="landing-footer">
+                <div class="landing-footer__inner">
+                    <div>
+                        <p class="landing-footer__brand">MicroMax</p>
+                        <p class="landing-footer__text">
+                            Публичная страница проекта MicroMax для управления микроскладом,
+                            адресным хранением и базовыми складскими операциями.
+                        </p>
+                    </div>
+                    <nav class="landing-footer__nav" aria-label="Ссылки по публичной странице">
+                        <a href="#features">Возможности</a>
+                        <a href="#audience">Для кого</a>
+                        <a asp-page="/Admin">Админ-панель</a>
+                    </nav>
+                    <p class="landing-footer__meta">Diploma project / Micro warehouse management system</p>
+                </div>
+            </footer>
         </div>
-    </footer>
+    }
+    else
+    {
+        <div class="app-shell">
+            @if (showAdminNavigation)
+            {
+                <header class="app-header">
+                    <div class="app-header__inner">
+                        <a class="app-brand" asp-page="/Admin">
+                            <span class="app-brand__eyebrow">Админ-панель</span>
+                            <span class="app-brand__name">MicroMax</span>
+                        </a>
+                        <nav class="app-nav app-nav--desktop" aria-label="Основное меню панели">
+                            @foreach (var item in navigationItems)
+                            {
+                                <a class="@GetNavLinkClass(item.Page)" asp-page="@item.Page">@item.Label</a>
+                            }
+                        </nav>
+                        <div class="admin-session admin-session--desktop">
+                            @if (User.Identity?.IsAuthenticated == true)
+                            {
+                                <span class="admin-session__name">@User.Identity.Name</span>
+                                <form method="post" asp-page="/Logout" class="admin-session__form">
+                                    <button type="submit" class="admin-session__button">Выход</button>
+                                </form>
+                            }
+                            else
+                            {
+                                <a class="admin-session__link" asp-page="/Login">Вход</a>
+                            }
+                        </div>
+                        <details class="app-mobile-menu">
+                            <summary class="app-mobile-menu__toggle">Меню</summary>
+                            <div class="app-mobile-menu__panel">
+                                <nav class="app-nav app-nav--mobile" aria-label="Мобильное меню панели">
+                                    @foreach (var item in navigationItems)
+                                    {
+                                        <a class="@GetNavLinkClass(item.Page)" asp-page="@item.Page">@item.Label</a>
+                                    }
+                                </nav>
+                                <div class="admin-session admin-session--mobile">
+                                    @if (User.Identity?.IsAuthenticated == true)
+                                    {
+                                        <span class="admin-session__name">@User.Identity.Name</span>
+                                        <form method="post" asp-page="/Logout" class="admin-session__form">
+                                            <button type="submit" class="admin-session__button">Выход</button>
+                                        </form>
+                                    }
+                                    else
+                                    {
+                                        <a class="admin-session__link" asp-page="/Login">Вход</a>
+                                    }
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                </header>
+            }
+            else
+            {
+                <header class="auth-header">
+                    <a class="app-brand app-brand--compact" asp-page="/Index">
+                        <span class="app-brand__eyebrow">MicroMax</span>
+                        <span class="app-brand__name">Система микросклада</span>
+                    </a>
+                </header>
+            }
+
+            <main role="main" class="@mainClass">
+                @RenderBody()
+            </main>
+        </div>
+
+        <footer class="app-footer">
+            <div class="app-footer__inner">
+                <span>&copy; 2026 MicroMax</span>
+                <span>Административная панель MVP</span>
+            </div>
+        </footer>
+    }
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

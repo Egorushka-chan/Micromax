@@ -75,7 +75,7 @@ public sealed class LoginModel(AdminPanelSignInService signInService) : PageMode
             return ReturnUrl;
         }
 
-        return Url.Page("/Index") ?? "/";
+        return Url.Page("/Admin") ?? "/admin";
     }
 
     public sealed class InputModel

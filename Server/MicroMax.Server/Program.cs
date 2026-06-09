@@ -40,6 +40,7 @@ builder.Services.AddDataProtection()
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/", AdminPanelAuthenticationDefaults.PolicyName);
+    options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Login");
     options.Conventions.AllowAnonymousToPage("/AccessDenied");
     options.Conventions.AllowAnonymousToPage("/Error");

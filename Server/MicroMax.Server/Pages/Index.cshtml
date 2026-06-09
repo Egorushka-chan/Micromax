@@ -1,156 +1,342 @@
 @page
 @model MicroMax.Server.Pages.IndexModel
 @{
-    ViewData["Title"] = "Главная";
+    ViewData["Title"] = "MicroMax";
 }
 
-<section class="page-hero">
-    <p class="page-eyebrow">MicroMax MVP</p>
-    <h1>Главная панель администратора</h1>
-    <p>
-        Dashboard показывает текущее состояние управляемых складов: структуру микросклада,
-        активные остатки и последние изменения по складским операциям.
-    </p>
-</section>
-
-<partial name="_AdminAlerts" />
-
-<section class="stat-grid">
-    <article class="stat-card">
-        <p class="stat-card__label">Склады</p>
-        <p class="stat-card__value">@Model.Summary.WarehouseCount</p>
-        <p class="stat-card__note">Склады, где текущий пользователь имеет роль ADMIN.</p>
-    </article>
-    <article class="stat-card">
-        <p class="stat-card__label">Зоны хранения</p>
-        <p class="stat-card__value">@Model.Summary.ZoneCount</p>
-        <p class="stat-card__note">Логические зоны внутри управляемых складов.</p>
-    </article>
-    <article class="stat-card">
-        <p class="stat-card__label">Ячейки хранения</p>
-        <p class="stat-card__value">@Model.Summary.CellCount</p>
-        <p class="stat-card__note">Адресное хранение и доступные места размещения.</p>
-    </article>
-    <article class="stat-card">
-        <p class="stat-card__label">Номенклатура</p>
-        <p class="stat-card__value">@Model.Summary.ProductCount</p>
-        <p class="stat-card__note">Глобальный каталог позиций MicroMax.</p>
-    </article>
-    <article class="stat-card">
-        <p class="stat-card__label">Позиции с остатком</p>
-        <p class="stat-card__value">@Model.Summary.StockPositionCount</p>
-        <p class="stat-card__note">Активные строки остатков по ячейкам хранения.</p>
-    </article>
-</section>
-
-<section class="panel">
-    <div class="panel__header">
-        <div>
-            <h2>Быстрые действия</h2>
-            <p class="panel__intro">Переходы к ключевым разделам админ-панели.</p>
+<section class="landing-hero" id="top">
+    <div class="landing-hero__content" data-reveal>
+        <p class="landing-kicker">Micro warehouse management system</p>
+        <h1>MicroMax — управление микроскладом без лишней сложности</h1>
+        <p class="landing-lead">
+            Создавайте структуру склада, контролируйте остатки, выполняйте операции и быстро находите товары
+            в ячейках — без внедрения тяжёлой ERP-системы.
+        </p>
+        <div class="landing-actions">
+            <a class="button-link" asp-page="/Admin">Открыть админ-панель</a>
+            <a class="button-link button-secondary" href="#features">Посмотреть возможности</a>
         </div>
-        <div class="row-actions">
-            <a class="button-link" asp-page="/Products">Добавить номенклатуру</a>
-            <a class="button-link button-secondary" asp-page="/Cells">Добавить ячейку</a>
-            <a class="button-link button-ghost" asp-page="/Operations">Выполнить операцию</a>
+        <ul class="landing-hero__points" aria-label="Ключевые свойства MicroMax">
+            <li>Склад → зоны → ячейки</li>
+            <li>Мобильная работа с остатками и операциями</li>
+            <li>Подтверждение всех операций изменения данных</li>
+        </ul>
+    </div>
+
+    <div class="landing-hero__visual" data-reveal>
+        <article class="mockup-card mockup-card--primary">
+            <div class="mockup-card__top">
+                <span class="mockup-chip">MicroMax</span>
+                <span class="mockup-status">MVP / Public demo</span>
+            </div>
+            <div class="mockup-grid">
+                <section class="mockup-panel">
+                    <p class="mockup-panel__label">Структура склада</p>
+                    <ul class="mockup-tree">
+                        <li>Склад Север</li>
+                        <li>Зона A</li>
+                        <li>Ячейка A-1</li>
+                        <li>Ячейка A-3</li>
+                    </ul>
+                </section>
+                <section class="mockup-panel">
+                    <p class="mockup-panel__label">Активные операции</p>
+                    <div class="mockup-metric">
+                        <strong>12</strong>
+                        <span>операций за смену</span>
+                    </div>
+                    <div class="mockup-timeline">
+                        <div>Приёмка кабеля USB-C</div>
+                        <div>Перемещение в B-2</div>
+                        <div>Списание фильтров</div>
+                    </div>
+                </section>
+            </div>
+        </article>
+
+        <article class="mockup-card mockup-card--assistant">
+            <p class="mockup-panel__label">Командный помощник</p>
+            <div class="assistant-line">Где лежит кабель USB-C?</div>
+            <div class="assistant-answer">Товар найден в ячейках A-1 и B-2.</div>
+            <div class="assistant-line">Перемести 5 штук из A-1 в B-2</div>
+            <div class="assistant-confirmation">
+                <span>Нужно подтверждение операции</span>
+                <div class="assistant-confirmation__actions">
+                    <button type="button">Подтвердить операцию</button>
+                    <button type="button" class="button-secondary">Отмена</button>
+                </div>
+            </div>
+        </article>
+    </div>
+</section>
+
+<section class="landing-section" id="audience" data-reveal>
+    <div class="landing-section__intro">
+        <p class="landing-kicker">Для кого</p>
+        <h2>MicroMax подходит тем, кому нужен понятный складской инструмент без тяжёлого внедрения</h2>
+        <p>
+            Система ориентирована на микросклады, где важно быстро понять, что есть в наличии, где это лежит
+            и какие действия уже были выполнены.
+        </p>
+    </div>
+    <div class="landing-grid landing-grid--three">
+        <article class="landing-card">
+            <h3>Малый бизнес</h3>
+            <p>Организуйте остатки и размещение товаров без перехода на крупную корпоративную систему.</p>
+        </article>
+        <article class="landing-card">
+            <h3>Мастерские</h3>
+            <p>Храните детали, инструменты и расходники по ячейкам, чтобы быстро находить нужные позиции.</p>
+        </article>
+        <article class="landing-card">
+            <h3>Склады расходников</h3>
+            <p>Контролируйте выдачу, пополнение и перемещения по адресной структуре склада.</p>
+        </article>
+        <article class="landing-card">
+            <h3>Небольшие магазины</h3>
+            <p>Поддерживайте порядок в подсобных помещениях и отслеживайте реальные остатки по местам хранения.</p>
+        </article>
+        <article class="landing-card">
+            <h3>Домашний склад</h3>
+            <p>Используйте MicroMax для системного хранения запасов, комплектующих и сезонных материалов.</p>
+        </article>
+        <article class="landing-card">
+            <h3>Сервисные организации</h3>
+            <p>Фиксируйте, где лежат запчасти и расходные материалы, и поддерживайте историю действий по складу.</p>
+        </article>
+    </div>
+</section>
+
+<section class="landing-section" id="problems" data-reveal>
+    <div class="landing-section__intro">
+        <p class="landing-kicker">Проблема</p>
+        <h2>MicroMax закрывает типовые трудности маленького склада</h2>
+    </div>
+    <div class="landing-grid landing-grid--three">
+        <article class="problem-card">
+            <h3>Товары лежат в разных местах</h3>
+            <p>Без адресной структуры сотрудники тратят время на поиск нужной позиции.</p>
+        </article>
+        <article class="problem-card">
+            <h3>Остатки живут в таблицах</h3>
+            <p>Записи в Excel, заметках и мессенджерах быстро расходятся с фактическим наличием.</p>
+        </article>
+        <article class="problem-card">
+            <h3>Неясно, где лежит товар</h3>
+            <p>При отсутствии ячеек и зон даже простой запрос превращается в ручную проверку склада.</p>
+        </article>
+        <article class="problem-card">
+            <h3>Перемещения не фиксируются</h3>
+            <p>Товар меняет место, а история действий и ответственный сотрудник не сохраняются.</p>
+        </article>
+        <article class="problem-card">
+            <h3>Списания забываются</h3>
+            <p>Расходники и мелкие позиции убывают постепенно, но система не отражает это вовремя.</p>
+        </article>
+        <article class="problem-card">
+            <h3>ERP слишком тяжёлая</h3>
+            <p>Микроскладу нужен быстрый рабочий инструмент, а не комплексная корпоративная платформа.</p>
+        </article>
+    </div>
+</section>
+
+<section class="landing-section" id="features" data-reveal>
+    <div class="landing-section__intro">
+        <p class="landing-kicker">Возможности</p>
+        <h2>Базовые WMS-функции для повседневной работы со складом</h2>
+        <p>MicroMax покрывает ключевые операции MVP и даёт единый контур учёта для небольшого склада.</p>
+    </div>
+    <div class="landing-grid landing-grid--three">
+        <article class="feature-card">
+            <h3>Структура склада</h3>
+            <p>Склады, зоны хранения и ячейки формируют понятную адресную модель.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Номенклатура и остатки</h3>
+            <p>Каталог позиций и фактические остатки по ячейкам в одном месте.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Приёмка товара</h3>
+            <p>Быстрое увеличение остатков с фиксацией результата в журнале операций.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Размещение по ячейкам</h3>
+            <p>Товар можно распределять по адресному хранению сразу после поступления.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Перемещение между ячейками</h3>
+            <p>Система фиксирует исходную и целевую ячейку и обновляет остатки транзакционно.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Списание и расход</h3>
+            <p>Списание выполняется как отдельная операция с проверкой доступного остатка.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Журнал операций</h3>
+            <p>История действий помогает понять, кто и когда изменял складские данные.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Роли пользователей</h3>
+            <p>Права доступа разделяются между администратором и сотрудниками склада.</p>
+        </article>
+        <article class="feature-card">
+            <h3>QR и штрихкоды</h3>
+            <p>Коды используются как быстрый способ перехода к товару или ячейке, а не как центр системы.</p>
+        </article>
+    </div>
+    <article class="landing-highlight">
+        <div>
+            <p class="landing-kicker">Командный помощник</p>
+            <h3>Дополнительный интерфейс к складским операциям</h3>
+            <p>
+                Командный помощник помогает быстро выполнять типовые запросы, но операции изменения данных
+                выполняются только после подтверждения пользователя.
+            </p>
+        </div>
+        <div class="landing-highlight__badge">Подтверждение обязательно</div>
+    </article>
+</section>
+
+<section class="landing-section" id="workflow" data-reveal>
+    <div class="landing-section__intro">
+        <p class="landing-kicker">Как это работает</p>
+        <h2>Базовый сценарий работы понятен с первого запуска</h2>
+    </div>
+    <div class="workflow">
+        <article class="workflow-step">
+            <span>1</span>
+            <h3>Создайте склад</h3>
+            <p>Задайте базовую структуру учёта и рабочее пространство для сотрудников.</p>
+        </article>
+        <article class="workflow-step">
+            <span>2</span>
+            <h3>Разбейте на зоны и ячейки</h3>
+            <p>Сформируйте адресное хранение, чтобы каждая позиция имела понятное местоположение.</p>
+        </article>
+        <article class="workflow-step">
+            <span>3</span>
+            <h3>Добавьте товары</h3>
+            <p>Заполните номенклатуру и подготовьте систему к реальным складским операциям.</p>
+        </article>
+        <article class="workflow-step">
+            <span>4</span>
+            <h3>Выполняйте операции</h3>
+            <p>Приёмка, перемещение и списание меняют остатки только через валидируемые операции.</p>
+        </article>
+        <article class="workflow-step">
+            <span>5</span>
+            <h3>Контролируйте остатки и историю</h3>
+            <p>Используйте журнал операций и остатки по ячейкам для повседневного контроля.</p>
+        </article>
+    </div>
+</section>
+
+<section class="landing-section landing-section--contrast" id="difference" data-reveal>
+    <div class="landing-section__intro">
+        <p class="landing-kicker">Отличие от ERP</p>
+        <h2>MicroMax — не мини-ERP и не замена 1С</h2>
+        <p>Это узкий инструмент для оперативного управления маленьким складом и адресным хранением.</p>
+    </div>
+    <div class="comparison">
+        <article class="comparison-card comparison-card--muted">
+            <h3>Тяжёлая ERP / крупная WMS</h3>
+            <ul>
+                <li>Продажи и CRM</li>
+                <li>Бухгалтерия и документы</li>
+                <li>Сложные регламенты и роли</li>
+                <li>Долгий запуск и внедрение</li>
+                <li>Избыточность для микросклада</li>
+            </ul>
+        </article>
+        <article class="comparison-card comparison-card--accent">
+            <h3>MicroMax</h3>
+            <ul>
+                <li>Складская структура и ячейки</li>
+                <li>Остатки и быстрые операции</li>
+                <li>Журнал действий</li>
+                <li>Мобильный сценарий работы</li>
+                <li>Быстрый запуск в рамках MVP</li>
+            </ul>
+        </article>
+    </div>
+</section>
+
+<section class="landing-section" id="assistant" data-reveal>
+    <div class="landing-section__intro">
+        <p class="landing-kicker">Командный интерфейс</p>
+        <h2>Быстрый доступ к складу через естественные запросы</h2>
+        <p>
+            Помощник не заменяет складской процесс, а сокращает путь к типовым действиям и поисковым запросам.
+        </p>
+    </div>
+    <div class="assistant-showcase">
+        <div class="assistant-console">
+            <div class="assistant-console__bar">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <div class="assistant-console__body">
+                <div class="assistant-message assistant-message--user">Где лежит кабель USB-C?</div>
+                <div class="assistant-message assistant-message--assistant">Позиция найдена в A-1 и B-2.</div>
+                <div class="assistant-message assistant-message--user">Сколько осталось коробок A4?</div>
+                <div class="assistant-message assistant-message--assistant">На складе доступно 24 штуки.</div>
+                <div class="assistant-message assistant-message--user">Что лежит в ячейке A-3?</div>
+                <div class="assistant-message assistant-message--assistant">В ячейке A-3 хранятся фильтры и упаковка.</div>
+                <div class="assistant-message assistant-message--user">Перемести 5 штук из A-1 в B-2</div>
+                <div class="assistant-confirm">
+                    <p>Операция подготовлена, но не выполнена.</p>
+                    <strong>Требуется подтверждение пользователя</strong>
+                    <div class="assistant-confirm__actions">
+                        <button type="button">Подтвердить операцию</button>
+                        <button type="button" class="button-secondary">Отмена</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="assistant-notes">
+            <article class="landing-card">
+                <h3>Типовые запросы</h3>
+                <ul>
+                    <li>Где лежит кабель USB-C?</li>
+                    <li>Сколько осталось коробок А4?</li>
+                    <li>Что лежит в ячейке A-3?</li>
+                    <li>Перемести 5 штук из A-1 в B-2</li>
+                    <li>Спиши 2 фильтра</li>
+                </ul>
+            </article>
+            <article class="landing-card landing-card--accent">
+                <h3>Важное ограничение</h3>
+                <p>
+                    Операции изменения данных не выполняются автономно. Пользователь должен проверить запрос
+                    и явно подтвердить действие.
+                </p>
+            </article>
         </div>
     </div>
 </section>
 
-<div class="grid grid--two">
-    <section class="panel">
-        <div class="panel__header">
-            <div>
-                <h2>Последние операции</h2>
-                <p class="panel__intro">Последние 10 изменений по управляемым складам.</p>
-            </div>
-            <a class="button-link button-secondary" asp-page="/OperationLog">Открыть журнал</a>
-        </div>
-
-        @if (Model.RecentOperations.Count == 0)
-        {
-            <div class="empty-state">Операции пока не зафиксированы.</div>
-        }
-        else
-        {
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                    <tr>
-                        <th>Дата</th>
-                        <th>Склад</th>
-                        <th>Операция</th>
-                        <th>Товар</th>
-                        <th>Ячейки</th>
-                        <th>Количество</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var row in Model.RecentOperations)
-                    {
-                        <tr>
-                            <td>
-                                @row.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
-                                <div class="subtle">@row.PerformedBy</div>
-                            </td>
-                            <td>@row.WarehouseName</td>
-                            <td>@row.Type</td>
-                            <td>
-                                @row.ProductName
-                                @if (!string.IsNullOrWhiteSpace(row.Comment))
-                                {
-                                    <div class="subtle">@row.Comment</div>
-                                }
-                            </td>
-                            <td>@(row.SourceCellCode ?? "—") → @(row.TargetCellCode ?? "—")</td>
-                            <td>@row.Quantity</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
-
-    <section class="panel">
-        <div class="panel__header">
-            <div>
-                <h2>Низкие остатки</h2>
-                <p class="panel__intro">Товары, по которым суммарный остаток не превышает минимальный уровень.</p>
-            </div>
-            <a class="button-link button-secondary" asp-page="/Stocks">Открыть остатки</a>
-        </div>
-
-        @if (Model.LowStockProducts.Count == 0)
-        {
-            <div class="empty-state">Товаров ниже минимального остатка сейчас нет.</div>
-        }
-        else
-        {
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                    <tr>
-                        <th>Номенклатура</th>
-                        <th>Фактический остаток</th>
-                        <th>Минимум</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var row in Model.LowStockProducts)
-                    {
-                        <tr>
-                            <td>
-                                <a asp-page="/Stocks" asp-route-productId="@row.ProductId">@row.Name</a>
-                                <div class="subtle">@row.Sku</div>
-                            </td>
-                            <td><span class="badge badge--warning">@row.TotalQuantity @row.Unit</span></td>
-                            <td>@row.MinQuantity @row.Unit</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
-</div>
+<section class="landing-section" id="fit" data-reveal>
+    <div class="landing-section__intro">
+        <p class="landing-kicker">Почему для микроскладов</p>
+        <h2>MicroMax подходит там, где важны скорость, порядок и низкий порог входа</h2>
+    </div>
+    <div class="landing-grid landing-grid--four">
+        <article class="landing-card">
+            <h3>Быстрый старт</h3>
+            <p>Можно начать с одной складской структуры и базовых операций без тяжёлой настройки.</p>
+        </article>
+        <article class="landing-card">
+            <h3>Понятная модель</h3>
+            <p>Сотруднику легче работать с зонами и ячейками, чем с громоздкими документными контурами.</p>
+        </article>
+        <article class="landing-card">
+            <h3>Мобильный сценарий</h3>
+            <p>Основной рабочий интерфейс рассчитан на мобильную работу кладовщика или сотрудника.</p>
+        </article>
+        <article class="landing-card">
+            <h3>MVP-фокус</h3>
+            <p>Система не разрастается до ERP и сохраняет внимание на оперативных складских действиях.</p>
+        </article>
+    </div>
+</section>
