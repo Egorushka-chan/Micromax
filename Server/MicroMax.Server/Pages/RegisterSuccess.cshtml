@@ -1,0 +1,26 @@
+@page
+@model MicroMax.Server.Pages.RegisterSuccessModel
+@{
+    ViewData["Title"] = "Регистрация завершена";
+}
+
+<section class="auth-shell">
+    <div class="auth-card auth-card--wide">
+        <p class="eyebrow">MicroMax</p>
+        <h1>Учётная запись создана</h1>
+        <p class="auth-text">
+            Регистрация завершена. Теперь вы можете войти в веб-панель, создать первый склад и продолжить настройку системы.
+        </p>
+
+        <div class="auth-success">
+            <div class="notice">
+                Вход в веб-панель уже доступен. Административные разделы для работы со складом откроются после создания первого склада.
+            </div>
+            <div class="auth-actions auth-actions--stack">
+                <a class="button-link" asp-page="/Login">Перейти ко входу</a>
+                <a class="button-link button-secondary disabled" href="#" onclick="return false;" aria-disabled="true">Скачать мобильный клиент</a>
+            </div>
+            <p class="auth-note">Ссылка на мобильный клиент пока отображается как заглушка и будет активирована позже.</p>
+        </div>
+    </div>
+</section>

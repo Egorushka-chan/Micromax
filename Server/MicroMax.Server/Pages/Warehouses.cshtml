@@ -9,14 +9,16 @@
         <p class="page-eyebrow">Складская структура</p>
         <h1>Склады</h1>
         <p>
-            Раздел управления складами в рамках MVP. Физическое удаление не используется,
-            чтобы не нарушать историю операций и связность складской структуры.
+            Создавайте склады, задавайте базовую структуру учёта и открывайте дальнейшую настройку микросклада.
         </p>
     </div>
-    <div class="page-heading__actions">
-        <a class="button-link button-secondary" asp-page="/Zones">Перейти к зонам</a>
-        <a class="button-link button-ghost" asp-page="/Users">Права по складам</a>
-    </div>
+    @if (Model.Warehouses.Count > 0)
+    {
+        <div class="page-heading__actions">
+            <a class="button-link button-secondary" asp-page="/Zones">Перейти к зонам</a>
+            <a class="button-link button-ghost" asp-page="/Users">Права по складам</a>
+        </div>
+    }
 </section>
 
 <partial name="_AdminAlerts" />
@@ -26,7 +28,7 @@
         <div class="panel__header">
             <div>
                 <h2>Новый склад</h2>
-                <p class="panel__intro">Создание нового склада и автоматическое назначение текущего администратора.</p>
+                <p class="panel__intro">После создания склада текущий пользователь автоматически становится его администратором.</p>
             </div>
         </div>
         <form method="post" asp-page-handler="Create" class="stack">
@@ -78,7 +80,7 @@
 
     @if (Model.Warehouses.Count == 0)
     {
-        <div class="empty-state">Доступных складов пока нет.</div>
+        <div class="empty-state">Склады пока не созданы. Добавьте первый склад, чтобы открыть разделы управления зонами, ячейками, номенклатурой и операциями.</div>
     }
     else
     {

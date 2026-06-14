@@ -24,9 +24,29 @@ public sealed class AuthAndPermissionTests
         var user = await db.AppUsers.SingleAsync();
         Assert.Equal("admin@example.com", user.Email);
         Assert.NotEqual("Password123!", user.PasswordHash);
+        Assert.False(user.CanAccessWebPanel);
         Assert.NotEmpty(response.AccessToken);
         Assert.NotEmpty(response.RefreshToken);
         Assert.Empty(response.User.Warehouses);
+    }
+
+    [Fact]
+    public async Task UserAccountServiceCanCreateWebPanelUserWithoutWarehouseAssignments()
+    {
+        await using var db = CreateDb();
+        SeedRoles(db);
+
+        var service = CreateUserAccountService(db);
+
+        var user = await service.CreateAsync(new CreateUserAccountRequest(
+            "web@example.com",
+            "Password123!",
+            "Веб-пользователь",
+            CanAccessWebPanel: true));
+
+        Assert.Equal("web@example.com", user.Email);
+        Assert.True(user.CanAccessWebPanel);
+        Assert.Empty(user.WarehouseUsers);
     }
 
     [Fact]
@@ -98,10 +118,14 @@ public sealed class AuthAndPermissionTests
 
         return new AuthService(
             db,
+            CreateUserAccountService(db),
             new PasswordHasher<AppUser>(),
             new JwtTokenService(jwtOptions),
             jwtOptions);
     }
+
+    private static UserAccountService CreateUserAccountService(MicroMaxDbContext db) =>
+        new(db, new PasswordHasher<AppUser>());
 
     private static MicroMaxDbContext CreateDb()
     {

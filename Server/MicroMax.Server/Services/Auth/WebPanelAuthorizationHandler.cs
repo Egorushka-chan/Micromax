@@ -1,18 +1,17 @@
 using System.Security.Claims;
-using MicroMax.Server.Models;
 using Microsoft.AspNetCore.Authorization;
 
 namespace MicroMax.Server.Services.Auth;
 
 /// <summary>
-/// Проверяет, что пользователь панели активен и имеет роль ADMIN хотя бы на одном складе.
+/// Проверяет, что пользователь может войти в веб-панель, даже если у него пока нет назначенных складов.
 /// </summary>
-public sealed class AdminPanelAuthorizationHandler(WebPanelAccessService webPanelAccessService)
-    : AuthorizationHandler<AdminPanelRequirement>
+public sealed class WebPanelAuthorizationHandler(WebPanelAccessService webPanelAccessService)
+    : AuthorizationHandler<WebPanelRequirement>
 {
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
-        AdminPanelRequirement requirement)
+        WebPanelRequirement requirement)
     {
         var userIdValue = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!int.TryParse(userIdValue, out var userId))
@@ -20,7 +19,7 @@ public sealed class AdminPanelAuthorizationHandler(WebPanelAccessService webPane
             return;
         }
 
-        if (await webPanelAccessService.HasWarehouseAdminAccessAsync(userId))
+        if (await webPanelAccessService.CanAccessAsync(userId))
         {
             context.Succeed(requirement);
         }

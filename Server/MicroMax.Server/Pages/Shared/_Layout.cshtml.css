@@ -123,8 +123,27 @@
   transform: translateY(-1px);
 }
 
+.landing-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
 .landing-header__action {
   white-space: nowrap;
+}
+
+.landing-header__link {
+  color: var(--brand);
+  text-decoration: none;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.landing-header__link:hover {
+  color: var(--brand-dark);
 }
 
 .app-mobile-menu {
@@ -381,6 +400,11 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .landing-header__actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .landing-header__action {

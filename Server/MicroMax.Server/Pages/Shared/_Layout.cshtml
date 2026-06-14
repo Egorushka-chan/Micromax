@@ -1,3 +1,4 @@
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -12,11 +13,18 @@
 @{
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
     var isPublicLanding = string.Equals(currentPage, "/Index", StringComparison.OrdinalIgnoreCase);
-    var isAuthPage = currentPage is "/Login" or "/AccessDenied";
+    var isAuthPage = currentPage is "/Login" or "/Register" or "/RegisterSuccess" or "/AccessDenied";
     var showAdminNavigation = !isPublicLanding && !isAuthPage;
     var bodyClass = isPublicLanding ? "landing-body" : showAdminNavigation ? "admin-body" : "auth-body";
     var mainClass = isPublicLanding ? "landing-main" : "app-main";
-    var navigationItems = new[]
+    var hasWarehouseAdminAccess = User.Identity?.IsAuthenticated == true &&
+        (await AuthorizationService.AuthorizeAsync(User, resource: null, policyName: AdminPanelAuthenticationDefaults.WarehouseAdminPolicyName)).Succeeded;
+    var basicNavigationItems = new[]
+    {
+        new { Label = "Главная", Page = "/Admin" },
+        new { Label = "Склады", Page = "/Warehouses" }
+    };
+    var adminNavigationItems = new[]
     {
         new { Label = "Главная", Page = "/Admin" },
         new { Label = "Склады", Page = "/Warehouses" },
@@ -28,6 +36,7 @@
         new { Label = "Пользователи", Page = "/Users" },
         new { Label = "Журнал", Page = "/OperationLog" }
     };
+    var navigationItems = hasWarehouseAdminAccess ? adminNavigationItems : basicNavigationItems;
 
     string GetNavLinkClass(string page) =>
         string.Equals(currentPage, page, StringComparison.OrdinalIgnoreCase)
@@ -50,7 +59,10 @@
                         <a href="#workflow">Как это работает</a>
                         <a href="#assistant">Командный интерфейс</a>
                     </nav>
-                    <a class="button-link landing-header__action" asp-page="/Admin">Открыть админ-панель</a>
+                    <div class="landing-header__actions">
+                        <a class="button-link landing-header__action" asp-page="/Register">Зарегистрироваться</a>
+                        <a class="landing-header__link" asp-page="/Login">Войти</a>
+                    </div>
                 </div>
             </header>
 
@@ -70,9 +82,10 @@
                     <nav class="landing-footer__nav" aria-label="Ссылки по публичной странице">
                         <a href="#features">Возможности</a>
                         <a href="#audience">Для кого</a>
-                        <a asp-page="/Admin">Админ-панель</a>
+                        <a asp-page="/Register">Регистрация</a>
+                        <a asp-page="/Login">Вход</a>
                     </nav>
-                    <p class="landing-footer__meta">Diploma project / Micro warehouse management system</p>
+                    <p class="landing-footer__meta">Система управления микроскладом и веб-панель MicroMax</p>
                 </div>
             </footer>
         </div>
@@ -85,7 +98,7 @@
                 <header class="app-header">
                     <div class="app-header__inner">
                         <a class="app-brand" asp-page="/Admin">
-                            <span class="app-brand__eyebrow">Админ-панель</span>
+                            <span class="app-brand__eyebrow">Веб-панель</span>
                             <span class="app-brand__name">MicroMax</span>
                         </a>
                         <nav class="app-nav app-nav--desktop" aria-label="Основное меню панели">
@@ -139,7 +152,7 @@
                 <header class="auth-header">
                     <a class="app-brand app-brand--compact" asp-page="/Index">
                         <span class="app-brand__eyebrow">MicroMax</span>
-                        <span class="app-brand__name">Система микросклада</span>
+                        <span class="app-brand__name">Веб-панель управления микроскладом</span>
                     </a>
                 </header>
             }
@@ -152,7 +165,7 @@
         <footer class="app-footer">
             <div class="app-footer__inner">
                 <span>&copy; 2026 MicroMax</span>
-                <span>Административная панель MVP</span>
+                <span>Веб-панель управления микроскладом</span>
             </div>
         </footer>
     }

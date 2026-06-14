@@ -1,7 +1,7 @@
 using MicroMax.Server.Data;
+using MicroMax.Server.Infrastructure.Api;
 using MicroMax.Server.Models;
 using MicroMax.Server.Services.Auth;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,7 +10,7 @@ namespace MicroMax.Server.Pages;
 public sealed class UsersModel(
     MicroMaxDbContext db,
     CurrentUserService currentUserService,
-    IPasswordHasher<AppUser> passwordHasher) : AdminPageModel(db, currentUserService)
+    UserAccountService userAccountService) : AdminPageModel(db, currentUserService)
 {
     private const string TemporaryPassword = "ChangeMe123!";
 
@@ -39,31 +39,27 @@ public sealed class UsersModel(
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
     {
-        var email = CreateForm.Email.Trim().ToLowerInvariant();
-        var displayName = CreateForm.DisplayName.Trim();
-
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(displayName))
-        {
-            SetErrorMessage("Укажите email и имя пользователя.");
-            return RedirectToPage(new { selectedUserId = SelectedUserId });
-        }
-
-        var user = new AppUser
-        {
-            Email = email,
-            DisplayName = displayName,
-            CreatedAt = DateTimeOffset.UtcNow,
-            IsActive = true
-        };
-        user.PasswordHash = passwordHasher.HashPassword(user, TemporaryPassword);
-
-        Db.AppUsers.Add(user);
-
         try
         {
-            await Db.SaveChangesAsync(cancellationToken);
+            var user = await userAccountService.CreateAsync(
+                new CreateUserAccountRequest(
+                    CreateForm.Email,
+                    TemporaryPassword,
+                    CreateForm.DisplayName,
+                    CanAccessWebPanel: false),
+                cancellationToken);
             SetSuccessMessage($"Пользователь создан. Временный пароль: {TemporaryPassword}");
             return RedirectToPage(new { selectedUserId = user.Id });
+        }
+        catch (ApiValidationException ex)
+        {
+            SetErrorMessage(ex.Message);
+            return RedirectToPage(new { selectedUserId = SelectedUserId });
+        }
+        catch (ApiConflictException ex)
+        {
+            SetErrorMessage(ex.Message);
+            return RedirectToPage(new { selectedUserId = SelectedUserId });
         }
         catch (DbUpdateException ex)
         {

@@ -1,0 +1,53 @@
+@page
+@model MicroMax.Server.Pages.RegisterModel
+@{
+    ViewData["Title"] = "Регистрация";
+}
+
+<section class="auth-shell">
+    <div class="auth-card auth-card--wide">
+        <p class="eyebrow">MicroMax</p>
+        <h1>Регистрация в веб-панели</h1>
+        <p class="auth-text">
+            Создайте учётную запись, чтобы открыть веб-панель MicroMax. После регистрации вы сможете войти в систему и добавить первый склад.
+        </p>
+
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+        <form method="post" class="stack auth-form">
+            <label asp-for="Input.DisplayName">Имя пользователя
+                <input asp-for="Input.DisplayName" autocomplete="name" />
+                <span asp-validation-for="Input.DisplayName" class="text-danger"></span>
+            </label>
+
+            <label asp-for="Input.Email">Email
+                <input asp-for="Input.Email" type="email" autocomplete="username" />
+                <span asp-validation-for="Input.Email" class="text-danger"></span>
+            </label>
+
+            <div class="form-grid">
+                <label asp-for="Input.Password">Пароль
+                    <input asp-for="Input.Password" type="password" autocomplete="new-password" />
+                    <span asp-validation-for="Input.Password" class="text-danger"></span>
+                </label>
+
+                <label asp-for="Input.ConfirmPassword">Подтверждение пароля
+                    <input asp-for="Input.ConfirmPassword" type="password" autocomplete="new-password" />
+                    <span asp-validation-for="Input.ConfirmPassword" class="text-danger"></span>
+                </label>
+            </div>
+
+            <button type="submit">Создать учётную запись</button>
+        </form>
+
+        <div class="auth-alt">
+            <p class="auth-alt__title">Уже есть учётная запись?</p>
+            <p class="auth-alt__text">Используйте действующий email и пароль для входа в веб-панель.</p>
+            <a class="button-link button-secondary" asp-page="/Login">Перейти ко входу</a>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

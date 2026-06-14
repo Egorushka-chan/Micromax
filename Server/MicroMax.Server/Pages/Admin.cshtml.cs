@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace MicroMax.Server.Pages;
 
 /// <summary>
-/// Защищённый dashboard админ-панели MicroMax, вынесенный с публичного корня на /admin.
+/// Защищённая главная страница веб-панели MicroMax, вынесенная с публичного корня на /admin.
 /// </summary>
 public sealed class AdminModel(
     MicroMaxDbContext db,
@@ -15,6 +15,7 @@ public sealed class AdminModel(
     public DashboardSummary Summary { get; private set; } = new(0, 0, 0, 0, 0);
     public List<DashboardOperationRow> RecentOperations { get; private set; } = [];
     public List<LowStockRow> LowStockProducts { get; private set; } = [];
+    public bool HasAdminWarehouses => Summary.WarehouseCount > 0;
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {

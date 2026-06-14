@@ -39,10 +39,126 @@ public sealed class AdminPanelAuthTests : IClassFixture<AdminPanelWebApplication
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("MicroMax — управление микроскладом без лишней сложности", html);
-        Assert.Contains("Открыть админ-панель", html);
+        Assert.Contains("Зарегистрироваться", html);
         Assert.Contains("#features", html);
         Assert.Contains("#audience", html);
         Assert.Contains("подтверждения пользователя", html);
+        Assert.DoesNotContain("MVP", html);
+        Assert.DoesNotContain("Public demo", html);
+    }
+
+    [Fact]
+    public async Task AnonymousRequestToLoginShowsRegistrationLink()
+    {
+        using var client = CreateClient();
+
+        var response = await client.GetAsync("/Login");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Вход в веб-панель", html);
+        Assert.Contains("Перейти к регистрации", html);
+    }
+
+    [Fact]
+    public async Task AnonymousUserCanRegisterAndSeeSuccessPage()
+    {
+        using var client = CreateClient();
+
+        var email = $"web-user-{Guid.NewGuid():N}@micromax.local";
+        const string password = "Password123!";
+
+        var response = await RegisterWebUserAsync(client, email, password, "Web User");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/RegisterSuccess", response.Headers.Location?.OriginalString);
+
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MicroMaxDbContext>();
+            var user = await db.AppUsers.SingleAsync(x => x.Email == email);
+
+            Assert.True(user.CanAccessWebPanel);
+            Assert.NotEqual(password, user.PasswordHash);
+            Assert.Empty(user.WarehouseUsers);
+        }
+
+        var successResponse = await client.GetAsync("/RegisterSuccess");
+        var successHtml = await successResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, successResponse.StatusCode);
+        Assert.Contains("Перейти ко входу", successHtml);
+        Assert.Contains("Скачать мобильный клиент", successHtml);
+    }
+
+    [Fact]
+    public async Task RegisteredWebUserCanLoginOpenOnboardingAndCreateFirstWarehouse()
+    {
+        using var client = CreateClient();
+
+        var email = $"starter-{Guid.NewGuid():N}@micromax.local";
+        const string password = "Password123!";
+
+        await RegisterWebUserAsync(client, email, password, "Starter User");
+        await LoginAsync(client, email, password);
+
+        var panelResponse = await client.GetAsync("/admin");
+        var panelHtml = await panelResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, panelResponse.StatusCode);
+        Assert.Contains("Склады пока не настроены", panelHtml);
+        Assert.DoesNotContain("Добавить номенклатуру", panelHtml);
+
+        var warehousesResponse = await client.GetAsync("/Warehouses");
+        Assert.Equal(HttpStatusCode.OK, warehousesResponse.StatusCode);
+
+        var antiForgeryToken = await GetAntiForgeryTokenAsync(client, "/Warehouses");
+        var createResponse = await client.PostAsync(
+            "/Warehouses?handler=Create",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiForgeryToken,
+                ["CreateForm.Name"] = "Первый склад",
+                ["CreateForm.Address"] = "Тестовый адрес"
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, createResponse.StatusCode);
+
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MicroMaxDbContext>();
+            var user = await db.AppUsers.SingleAsync(x => x.Email == email);
+            var membership = await db.WarehouseUsers
+                .Include(x => x.Role)
+                .SingleAsync(x => x.UserId == user.Id);
+
+            Assert.Equal(SystemRoleCodes.Admin, membership.Role!.Code);
+        }
+
+        var zonesResponse = await client.GetAsync("/Zones");
+        Assert.Equal(HttpStatusCode.OK, zonesResponse.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/Zones")]
+    [InlineData("/Cells")]
+    [InlineData("/Products")]
+    [InlineData("/Stocks")]
+    [InlineData("/Operations")]
+    [InlineData("/Users")]
+    [InlineData("/OperationLog")]
+    public async Task RegisteredWebUserWithoutAdminRoleCannotOpenRestrictedPages(string url)
+    {
+        using var client = CreateClient();
+
+        var email = $"limited-{Guid.NewGuid():N}@micromax.local";
+        const string password = "Password123!";
+
+        await RegisterWebUserAsync(client, email, password, "Limited User");
+        await LoginAsync(client, email, password);
+
+        var response = await client.GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/AccessDenied", response.Headers.Location?.AbsolutePath);
     }
 
     [Fact]
@@ -401,7 +517,8 @@ public sealed class AdminPanelAuthTests : IClassFixture<AdminPanelWebApplication
             Email = WorkerEmail,
             DisplayName = "Worker User",
             CreatedAt = DateTimeOffset.UtcNow,
-            IsActive = true
+            IsActive = true,
+            CanAccessWebPanel = false
         };
         user.PasswordHash = hasher.HashPassword(user, WorkerPassword);
 
@@ -438,6 +555,26 @@ public sealed class AdminPanelAuthTests : IClassFixture<AdminPanelWebApplication
 
         Assert.True(match.Success, "Antiforgery token was not found on the page.");
         return WebUtility.HtmlDecode(match.Groups[1].Value);
+    }
+
+    private async Task<HttpResponseMessage> RegisterWebUserAsync(
+        HttpClient client,
+        string email,
+        string password,
+        string displayName)
+    {
+        var antiForgeryToken = await GetAntiForgeryTokenAsync(client, "/Register");
+
+        return await client.PostAsync(
+            "/Register",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiForgeryToken,
+                ["Input.DisplayName"] = displayName,
+                ["Input.Email"] = email,
+                ["Input.Password"] = password,
+                ["Input.ConfirmPassword"] = password
+            }));
     }
 }
 

@@ -1,156 +1,180 @@
 @page "/admin"
 @model MicroMax.Server.Pages.AdminModel
 @{
-    ViewData["Title"] = "Главная панель";
+    ViewData["Title"] = "Веб-панель";
 }
 
 <section class="page-hero">
-    <p class="page-eyebrow">MicroMax MVP</p>
-    <h1>Главная панель администратора</h1>
+    <p class="page-eyebrow">Веб-панель MicroMax</p>
+    <h1>Управление микроскладом</h1>
     <p>
-        Dashboard показывает текущее состояние управляемых складов: структуру микросклада,
-        активные остатки и последние изменения по складским операциям.
+        Веб-панель помогает управлять складской структурой, контролировать остатки и сопровождать настройку микросклада.
     </p>
 </section>
 
 <partial name="_AdminAlerts" />
 
-<section class="stat-grid">
-    <article class="stat-card">
-        <p class="stat-card__label">Склады</p>
-        <p class="stat-card__value">@Model.Summary.WarehouseCount</p>
-        <p class="stat-card__note">Склады, где текущий пользователь имеет роль ADMIN.</p>
-    </article>
-    <article class="stat-card">
-        <p class="stat-card__label">Зоны хранения</p>
-        <p class="stat-card__value">@Model.Summary.ZoneCount</p>
-        <p class="stat-card__note">Логические зоны внутри управляемых складов.</p>
-    </article>
-    <article class="stat-card">
-        <p class="stat-card__label">Ячейки хранения</p>
-        <p class="stat-card__value">@Model.Summary.CellCount</p>
-        <p class="stat-card__note">Адресное хранение и доступные места размещения.</p>
-    </article>
-    <article class="stat-card">
-        <p class="stat-card__label">Номенклатура</p>
-        <p class="stat-card__value">@Model.Summary.ProductCount</p>
-        <p class="stat-card__note">Глобальный каталог позиций MicroMax.</p>
-    </article>
-    <article class="stat-card">
-        <p class="stat-card__label">Позиции с остатком</p>
-        <p class="stat-card__value">@Model.Summary.StockPositionCount</p>
-        <p class="stat-card__note">Активные строки остатков по ячейкам хранения.</p>
-    </article>
-</section>
+@if (!Model.HasAdminWarehouses)
+{
+    <section class="panel onboarding-panel">
+        <div class="panel__header">
+            <div>
+                <h2>Склады пока не настроены</h2>
+                <p class="panel__intro">У вашей учётной записи уже есть доступ к веб-панели, но ещё нет складов, где вы назначены администратором.</p>
+            </div>
+            <div class="row-actions">
+                <a class="button-link" asp-page="/Warehouses">Создать первый склад</a>
+            </div>
+        </div>
+        <div class="grid grid--two">
+            <div class="notice">
+                После создания первого склада система автоматически назначит вас администратором этого склада.
+            </div>
+            <div class="notice">
+                Затем станут доступны разделы зон, ячеек, номенклатуры, остатков, операций, пользователей и журнала.
+            </div>
+        </div>
+    </section>
+}
+else
+{
+    <section class="stat-grid">
+        <article class="stat-card">
+            <p class="stat-card__label">Склады</p>
+            <p class="stat-card__value">@Model.Summary.WarehouseCount</p>
+            <p class="stat-card__note">Склады, где текущий пользователь имеет роль администратора.</p>
+        </article>
+        <article class="stat-card">
+            <p class="stat-card__label">Зоны хранения</p>
+            <p class="stat-card__value">@Model.Summary.ZoneCount</p>
+            <p class="stat-card__note">Логические зоны внутри управляемых складов.</p>
+        </article>
+        <article class="stat-card">
+            <p class="stat-card__label">Ячейки хранения</p>
+            <p class="stat-card__value">@Model.Summary.CellCount</p>
+            <p class="stat-card__note">Адресное хранение и доступные места размещения.</p>
+        </article>
+        <article class="stat-card">
+            <p class="stat-card__label">Номенклатура</p>
+            <p class="stat-card__value">@Model.Summary.ProductCount</p>
+            <p class="stat-card__note">Каталог позиций, доступный в вашей веб-панели.</p>
+        </article>
+        <article class="stat-card">
+            <p class="stat-card__label">Позиции с остатком</p>
+            <p class="stat-card__value">@Model.Summary.StockPositionCount</p>
+            <p class="stat-card__note">Активные строки остатков по ячейкам хранения.</p>
+        </article>
+    </section>
 
-<section class="panel">
-    <div class="panel__header">
-        <div>
-            <h2>Быстрые действия</h2>
-            <p class="panel__intro">Переходы к ключевым разделам админ-панели.</p>
+    <section class="panel">
+        <div class="panel__header">
+            <div>
+                <h2>Быстрые действия</h2>
+                <p class="panel__intro">Переходы к ключевым разделам веб-панели.</p>
+            </div>
+            <div class="row-actions">
+                <a class="button-link" asp-page="/Products">Добавить номенклатуру</a>
+                <a class="button-link button-secondary" asp-page="/Cells">Добавить ячейку</a>
+                <a class="button-link button-ghost" asp-page="/Operations">Выполнить операцию</a>
+            </div>
         </div>
-        <div class="row-actions">
-            <a class="button-link" asp-page="/Products">Добавить номенклатуру</a>
-            <a class="button-link button-secondary" asp-page="/Cells">Добавить ячейку</a>
-            <a class="button-link button-ghost" asp-page="/Operations">Выполнить операцию</a>
-        </div>
+    </section>
+
+    <div class="grid grid--two">
+        <section class="panel">
+            <div class="panel__header">
+                <div>
+                    <h2>Последние операции</h2>
+                    <p class="panel__intro">Последние 10 изменений по управляемым складам.</p>
+                </div>
+                <a class="button-link button-secondary" asp-page="/OperationLog">Открыть журнал</a>
+            </div>
+
+            @if (Model.RecentOperations.Count == 0)
+            {
+                <div class="empty-state">Операции пока не зафиксированы.</div>
+            }
+            else
+            {
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Склад</th>
+                            <th>Операция</th>
+                            <th>Товар</th>
+                            <th>Ячейки</th>
+                            <th>Количество</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.RecentOperations)
+                        {
+                            <tr>
+                                <td>
+                                    @row.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                                    <div class="subtle">@row.PerformedBy</div>
+                                </td>
+                                <td>@row.WarehouseName</td>
+                                <td>@row.Type</td>
+                                <td>
+                                    @row.ProductName
+                                    @if (!string.IsNullOrWhiteSpace(row.Comment))
+                                    {
+                                        <div class="subtle">@row.Comment</div>
+                                    }
+                                </td>
+                                <td>@(row.SourceCellCode ?? "—") → @(row.TargetCellCode ?? "—")</td>
+                                <td>@row.Quantity</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <section class="panel">
+            <div class="panel__header">
+                <div>
+                    <h2>Низкие остатки</h2>
+                    <p class="panel__intro">Товары, по которым суммарный остаток не превышает минимальный уровень.</p>
+                </div>
+                <a class="button-link button-secondary" asp-page="/Stocks">Открыть остатки</a>
+            </div>
+
+            @if (Model.LowStockProducts.Count == 0)
+            {
+                <div class="empty-state">Товаров ниже минимального остатка сейчас нет.</div>
+            }
+            else
+            {
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Номенклатура</th>
+                            <th>Фактический остаток</th>
+                            <th>Минимум</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.LowStockProducts)
+                        {
+                            <tr>
+                                <td>
+                                    <a asp-page="/Stocks" asp-route-productId="@row.ProductId">@row.Name</a>
+                                    <div class="subtle">@row.Sku</div>
+                                </td>
+                                <td><span class="badge badge--warning">@row.TotalQuantity @row.Unit</span></td>
+                                <td>@row.MinQuantity @row.Unit</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
     </div>
-</section>
-
-<div class="grid grid--two">
-    <section class="panel">
-        <div class="panel__header">
-            <div>
-                <h2>Последние операции</h2>
-                <p class="panel__intro">Последние 10 изменений по управляемым складам.</p>
-            </div>
-            <a class="button-link button-secondary" asp-page="/OperationLog">Открыть журнал</a>
-        </div>
-
-        @if (Model.RecentOperations.Count == 0)
-        {
-            <div class="empty-state">Операции пока не зафиксированы.</div>
-        }
-        else
-        {
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                    <tr>
-                        <th>Дата</th>
-                        <th>Склад</th>
-                        <th>Операция</th>
-                        <th>Товар</th>
-                        <th>Ячейки</th>
-                        <th>Количество</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var row in Model.RecentOperations)
-                    {
-                        <tr>
-                            <td>
-                                @row.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
-                                <div class="subtle">@row.PerformedBy</div>
-                            </td>
-                            <td>@row.WarehouseName</td>
-                            <td>@row.Type</td>
-                            <td>
-                                @row.ProductName
-                                @if (!string.IsNullOrWhiteSpace(row.Comment))
-                                {
-                                    <div class="subtle">@row.Comment</div>
-                                }
-                            </td>
-                            <td>@(row.SourceCellCode ?? "—") → @(row.TargetCellCode ?? "—")</td>
-                            <td>@row.Quantity</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
-
-    <section class="panel">
-        <div class="panel__header">
-            <div>
-                <h2>Низкие остатки</h2>
-                <p class="panel__intro">Товары, по которым суммарный остаток не превышает минимальный уровень.</p>
-            </div>
-            <a class="button-link button-secondary" asp-page="/Stocks">Открыть остатки</a>
-        </div>
-
-        @if (Model.LowStockProducts.Count == 0)
-        {
-            <div class="empty-state">Товаров ниже минимального остатка сейчас нет.</div>
-        }
-        else
-        {
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                    <tr>
-                        <th>Номенклатура</th>
-                        <th>Фактический остаток</th>
-                        <th>Минимум</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var row in Model.LowStockProducts)
-                    {
-                        <tr>
-                            <td>
-                                <a asp-page="/Stocks" asp-route-productId="@row.ProductId">@row.Name</a>
-                                <div class="subtle">@row.Sku</div>
-                            </td>
-                            <td><span class="badge badge--warning">@row.TotalQuantity @row.Unit</span></td>
-                            <td>@row.MinQuantity @row.Unit</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
-</div>
+}

@@ -10,7 +10,8 @@ namespace MicroMax.Server.Services.Auth;
 /// </summary>
 public sealed class AdminPanelSignInService(
     MicroMaxDbContext db,
-    IPasswordHasher<AppUser> passwordHasher)
+    IPasswordHasher<AppUser> passwordHasher,
+    WebPanelAccessService webPanelAccessService)
 {
     public async Task<AppUser?> ValidateCredentialsAsync(
         string email,
@@ -39,8 +40,6 @@ public sealed class AdminPanelSignInService(
             return null;
         }
 
-        return user.WarehouseUsers.Any(x => x.Role?.Code == SystemRoleCodes.Admin)
-            ? user
-            : null;
+        return webPanelAccessService.CanAccess(user) ? user : null;
     }
 }

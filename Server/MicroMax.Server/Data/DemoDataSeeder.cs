@@ -20,6 +20,13 @@ public static class DemoDataSeeder
             await db.SaveChangesAsync();
         }
 
+        var existingDemoAdmin = await db.AppUsers.FirstOrDefaultAsync(x => x.Email == DemoAdminEmail);
+        if (existingDemoAdmin is not null && !existingDemoAdmin.CanAccessWebPanel)
+        {
+            existingDemoAdmin.CanAccessWebPanel = true;
+            await db.SaveChangesAsync();
+        }
+
         if (await db.Warehouses.AnyAsync())
         {
             return;
@@ -31,7 +38,8 @@ public static class DemoDataSeeder
             Email = DemoAdminEmail,
             DisplayName = "Администратор MicroMax",
             CreatedAt = DateTimeOffset.UtcNow,
-            IsActive = true
+            IsActive = true,
+            CanAccessWebPanel = true
         };
         user.PasswordHash = passwordHasher.HashPassword(user, DemoAdminPassword);
 

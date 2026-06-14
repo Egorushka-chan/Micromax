@@ -9,10 +9,11 @@
         <p class="eyebrow">MicroMax</p>
         <h1>Доступ запрещён</h1>
         <p class="auth-text">
-            У текущего пользователя нет прав администратора для работы с админ-панелью.
+            У текущего пользователя недостаточно прав для открытия этого раздела веб-панели.
         </p>
-        <div class="auth-actions">
-            <a class="btn btn-primary" asp-page="/Login">Вернуться к входу</a>
+        <div class="auth-actions auth-actions--stack">
+            <a class="button-link" asp-page="/Admin">Вернуться на главную страницу панели</a>
+            <a class="button-link button-secondary" asp-page="/Login">Сменить пользователя</a>
         </div>
     </div>
 </section>

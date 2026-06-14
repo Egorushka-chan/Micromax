@@ -38,9 +38,18 @@ builder.Services.AddDataProtection()
 
 builder.Services.AddRazorPages(options =>
 {
-    options.Conventions.AuthorizeFolder("/", AdminPanelAuthenticationDefaults.PolicyName);
+    options.Conventions.AuthorizeFolder("/", AdminPanelAuthenticationDefaults.WebPanelPolicyName);
+    options.Conventions.AuthorizePage("/Zones", AdminPanelAuthenticationDefaults.WarehouseAdminPolicyName);
+    options.Conventions.AuthorizePage("/Cells", AdminPanelAuthenticationDefaults.WarehouseAdminPolicyName);
+    options.Conventions.AuthorizePage("/Products", AdminPanelAuthenticationDefaults.WarehouseAdminPolicyName);
+    options.Conventions.AuthorizePage("/Stocks", AdminPanelAuthenticationDefaults.WarehouseAdminPolicyName);
+    options.Conventions.AuthorizePage("/Operations", AdminPanelAuthenticationDefaults.WarehouseAdminPolicyName);
+    options.Conventions.AuthorizePage("/Users", AdminPanelAuthenticationDefaults.WarehouseAdminPolicyName);
+    options.Conventions.AuthorizePage("/OperationLog", AdminPanelAuthenticationDefaults.WarehouseAdminPolicyName);
     options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Login");
+    options.Conventions.AllowAnonymousToPage("/Register");
+    options.Conventions.AllowAnonymousToPage("/RegisterSuccess");
     options.Conventions.AllowAnonymousToPage("/AccessDenied");
     options.Conventions.AllowAnonymousToPage("/Error");
 });
@@ -91,11 +100,14 @@ var jwtSection = builder.Configuration.GetSection("Jwt");
 builder.Services.Configure<JwtOptions>(jwtSection);
 builder.Services.AddScoped<IPasswordHasher<MicroMax.Server.Models.AppUser>, PasswordHasher<MicroMax.Server.Models.AppUser>>();
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<UserAccountService>();
+builder.Services.AddScoped<WebPanelAccessService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<CurrentUserService>();
 builder.Services.AddScoped<WarehousePermissionService>();
 builder.Services.AddScoped<AdminPanelSignInService>();
 builder.Services.AddScoped<IAuthorizationHandler, AdminPanelAuthorizationHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, WebPanelAuthorizationHandler>();
 builder.Services.AddScoped<WarehousesApiService>();
 builder.Services.AddScoped<WarehouseSetupService>();
 builder.Services.AddScoped<WarehouseUsersApiService>();
@@ -163,7 +175,13 @@ builder.Services.AddAuthentication(options =>
     });
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy(AdminPanelAuthenticationDefaults.PolicyName, policy =>
+    options.AddPolicy(AdminPanelAuthenticationDefaults.WebPanelPolicyName, policy =>
+    {
+        policy.AuthenticationSchemes.Add(AdminPanelAuthenticationDefaults.Scheme);
+        policy.RequireAuthenticatedUser();
+        policy.Requirements.Add(new WebPanelRequirement());
+    });
+    options.AddPolicy(AdminPanelAuthenticationDefaults.WarehouseAdminPolicyName, policy =>
     {
         policy.AuthenticationSchemes.Add(AdminPanelAuthenticationDefaults.Scheme);
         policy.RequireAuthenticatedUser();

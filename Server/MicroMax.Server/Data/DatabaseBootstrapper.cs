@@ -11,6 +11,7 @@ public static class DatabaseBootstrapper
     private const string CurrentEfProductVersion = "10.0.2";
     private const string AuthMigrationId = "202606040001_AddAuthAndWarehouseRoles";
     private const string BarcodeMigrationId = "202606050001_AddBarcodes";
+    private const string WebPanelAccessMigrationId = "202606150001_AddWebPanelAccess";
 
     public static async Task InitializeAsync(MicroMaxDbContext db, IPasswordHasher<AppUser> passwordHasher)
     {
@@ -18,6 +19,7 @@ public static class DatabaseBootstrapper
         {
             await db.Database.EnsureCreatedAsync();
             await EnsureBarcodesSchemaAsync(db);
+            await EnsureWebPanelAccessSchemaAsync(db);
             await EnsureMigrationHistoryAsync(db);
 
             if ((await db.Database.GetPendingMigrationsAsync()).Any())
@@ -91,6 +93,19 @@ public static class DatabaseBootstrapper
             INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
             VALUES ('{BarcodeMigrationId}', '{CurrentEfProductVersion}')
             ON CONFLICT ("MigrationId") DO NOTHING;
+            """);
+        await db.Database.ExecuteSqlRawAsync($"""
+            INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+            VALUES ('{WebPanelAccessMigrationId}', '{CurrentEfProductVersion}')
+            ON CONFLICT ("MigrationId") DO NOTHING;
+            """);
+    }
+
+    private static async Task EnsureWebPanelAccessSchemaAsync(MicroMaxDbContext db)
+    {
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "AppUsers"
+            ADD COLUMN IF NOT EXISTS "CanAccessWebPanel" boolean NOT NULL DEFAULT FALSE;
             """);
     }
 

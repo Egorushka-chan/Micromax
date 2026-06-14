@@ -95,6 +95,7 @@ public sealed class AppUser
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public bool IsActive { get; set; } = true;
+    public bool CanAccessWebPanel { get; set; }
     public List<WarehouseUser> WarehouseUsers { get; set; } = [];
     public List<RefreshToken> RefreshTokens { get; set; } = [];
     public List<WarehouseOperation> Operations { get; set; } = [];

@@ -1,15 +1,15 @@
 @page
 @model MicroMax.Server.Pages.LoginModel
 @{
-    ViewData["Title"] = "Вход в админ-панель";
+    ViewData["Title"] = "Вход в веб-панель";
 }
 
 <section class="auth-shell">
     <div class="auth-card">
         <p class="eyebrow">MicroMax</p>
-        <h1>Вход в админ-панель</h1>
+        <h1>Вход в веб-панель</h1>
         <p class="auth-text">
-            Доступ к панели управления разрешён только администраторам склада.
+            Войдите в веб-панель MicroMax. После создания первого склада откроются разделы управления складской структурой и операциями.
         </p>
 
         @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
@@ -37,6 +37,12 @@
 
             <button type="submit">Войти</button>
         </form>
+
+        <div class="auth-alt">
+            <p class="auth-alt__title">Нет учётной записи?</p>
+            <p class="auth-alt__text">Зарегистрируйтесь, чтобы получить доступ к веб-панели и создать первый склад.</p>
+            <a class="button-link button-secondary" asp-page="/Register">Перейти к регистрации</a>
+        </div>
     </div>
 </section>
 
